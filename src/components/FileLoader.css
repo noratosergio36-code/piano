@@ -1,0 +1,88 @@
+.file-loader {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.drop-zone {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border: 1px dashed #0f3460;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  background: rgba(15, 52, 96, 0.15);
+  user-select: none;
+}
+
+.drop-zone:hover,
+.drop-zone:focus-visible {
+  border-color: #60b3ff;
+  background: rgba(96, 179, 255, 0.08);
+  outline: none;
+}
+
+.drop-zone.dragging {
+  border-color: #60b3ff;
+  background: rgba(96, 179, 255, 0.15);
+}
+
+.drop-icon {
+  font-size: 1.4rem;
+  flex-shrink: 0;
+}
+
+.drop-text {
+  font-size: 0.8rem;
+  color: #8888aa;
+  line-height: 1.4;
+}
+
+.drop-text strong {
+  color: #c0c0e0;
+}
+
+.drop-text small {
+  color: #555577;
+}
+
+.loader-status {
+  font-size: 0.75rem;
+  padding: 4px 10px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.loader-status--loading {
+  color: #60b3ff;
+  background: rgba(96, 179, 255, 0.1);
+}
+
+.loader-status--ok {
+  color: #6ee7b7;
+  background: rgba(110, 231, 183, 0.1);
+}
+
+.loader-status--error {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.1);
+}
+
+.spinner {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 2px solid #60b3ff;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

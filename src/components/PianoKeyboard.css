@@ -1,0 +1,66 @@
+.piano-keyboard {
+  width: 100%;
+  background: #1a1a2e;
+  padding: 8px 0 0;
+  user-select: none;
+  display: flex;
+  justify-content: center;
+}
+
+.piano-keys-container {
+  /* width and height set inline */
+}
+
+.piano-key {
+  border-radius: 0 0 6px 6px;
+  cursor: pointer;
+  transition: background 0.05s ease, box-shadow 0.05s ease;
+  box-sizing: border-box;
+}
+
+.white-key {
+  background: linear-gradient(to bottom, #f0f0f0, #ffffff);
+  border: 1px solid #999;
+  border-top: 2px solid #ddd;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 8px;
+}
+
+.white-key:hover {
+  background: linear-gradient(to bottom, #e8f4ff, #d0eaff);
+}
+
+.white-key.active {
+  background: linear-gradient(to bottom, #a8d8ff, #60b3ff);
+  box-shadow: inset 0 -4px 10px rgba(0, 100, 255, 0.5);
+}
+
+.black-key {
+  background: linear-gradient(165deg, #444 0%, #111 40%, #000 100%);
+  border-radius: 0 0 5px 5px;
+  box-shadow: 2px 5px 8px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255,255,255,0.1);
+}
+
+.black-key:hover {
+  background: linear-gradient(165deg, #555 0%, #222 40%, #111 100%);
+}
+
+.black-key.active {
+  background: linear-gradient(165deg, #3a8fff 0%, #0055dd 50%, #0033aa 100%);
+  box-shadow: 0 4px 16px rgba(0, 100, 255, 0.8);
+}
+
+.key-label {
+  font-size: 9px;
+  color: #666;
+  text-align: center;
+  pointer-events: none;
+  font-family: monospace;
+}
+
+.white-key.active .key-label {
+  color: #003399;
+  font-weight: bold;
+}

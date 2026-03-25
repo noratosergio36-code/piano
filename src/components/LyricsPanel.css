@@ -1,0 +1,170 @@
+.lyrics-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 160px;
+}
+
+.lyrics-display {
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+}
+
+.lyrics-text {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #ffffff;
+  text-shadow: 0 0 12px rgba(96, 179, 255, 0.8);
+  letter-spacing: 0.02em;
+  animation: lyric-pop 0.15s ease;
+}
+
+@keyframes lyric-pop {
+  from { transform: scale(1.15); opacity: 0.6; }
+  to   { transform: scale(1);    opacity: 1; }
+}
+
+.lyrics-empty {
+  font-size: 0.8rem;
+  color: #444466;
+}
+
+.lyrics-controls {
+  display: flex;
+  gap: 4px;
+}
+
+.btn-lyrics {
+  background: transparent;
+  border: 1px solid #1a2a4a;
+  color: #6666aa;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.btn-lyrics:hover {
+  border-color: #60b3ff;
+  color: #60b3ff;
+}
+
+.lyrics-status {
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 3px;
+}
+
+.lyrics-status--ok    { color: #6ee7b7; background: rgba(110,231,183,0.1); }
+.lyrics-status--error { color: #f87171; background: rgba(248,113,113,0.1); }
+
+/* Modal overlay */
+.lyrics-editor-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.lyrics-editor-modal {
+  background: #16213e;
+  border: 1px solid #0f3460;
+  border-radius: 10px;
+  width: min(600px, 90vw);
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px;
+}
+
+.editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #c0c0e0;
+}
+
+.btn-close {
+  background: none;
+  border: none;
+  color: #666;
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.btn-close:hover { color: #f87171; }
+
+.editor-hint {
+  font-size: 0.75rem;
+  color: #555577;
+}
+
+.editor-hint code {
+  color: #a78bfa;
+  font-family: monospace;
+}
+
+.editor-textarea {
+  flex: 1;
+  min-height: 280px;
+  background: #0d0d1a;
+  border: 1px solid #0f3460;
+  border-radius: 6px;
+  color: #c0d8ff;
+  font-family: 'Cascadia Code', 'Consolas', monospace;
+  font-size: 0.82rem;
+  padding: 10px;
+  resize: vertical;
+  outline: none;
+}
+
+.editor-textarea:focus { border-color: #60b3ff; }
+
+.editor-error {
+  font-size: 0.78rem;
+  color: #f87171;
+  background: rgba(248,113,113,0.1);
+  padding: 6px 10px;
+  border-radius: 4px;
+}
+
+.editor-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.btn-apply {
+  background: #0f3460;
+  border: 1px solid #60b3ff;
+  color: #60b3ff;
+  padding: 6px 18px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-apply:hover { background: #1a5fa8; }
+
+.btn-cancel {
+  background: transparent;
+  border: 1px solid #333355;
+  color: #555577;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.btn-cancel:hover { border-color: #666699; color: #9999bb; }

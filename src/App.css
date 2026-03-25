@@ -1,0 +1,174 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+}
+
+.app-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #0d0d1a;
+  color: #e0e0f0;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  overflow: hidden;
+}
+
+.app-header {
+  padding: 12px 20px;
+  background: #16213e;
+  border-bottom: 1px solid #0f3460;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.app-header h1 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  background: linear-gradient(90deg, #60b3ff, #a78bfa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.midi-warning {
+  font-size: 0.8rem;
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.1);
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.midi-error {
+  font-size: 0.8rem;
+  color: #f87171;
+}
+
+.app-main {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.waterfall-placeholder {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #444;
+  font-size: 1.2rem;
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(255,255,255,0.01) 0px,
+    rgba(255,255,255,0.01) 1px,
+    transparent 1px,
+    transparent 40px
+  );
+}
+
+.app-footer {
+  flex-shrink: 0;
+  background: #1a1a2e;
+  border-top: 2px solid #0f3460;
+}
+
+/* Shared-width stage: constrains canvas to exactly the keyboard width so
+   note blocks always align with piano keys regardless of window size. */
+.piano-stage {
+  height: 100%;
+  margin: 0 auto;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Transport controls */
+.transport-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-transport {
+  background: #0f3460;
+  border: 1px solid #1a5fa8;
+  color: #e0e0f0;
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-transport:hover {
+  background: #1a5fa8;
+}
+
+.time-display {
+  font-size: 0.85rem;
+  font-family: monospace;
+  color: #60b3ff;
+  min-width: 56px;
+  transition: color 0.2s;
+}
+
+.time-display.time-frozen {
+  color: #f59e0b;
+  animation: blink-frozen 1s ease infinite;
+}
+
+@keyframes blink-frozen {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+/* Notation toggle */
+.notation-toggle {
+  display: flex;
+  gap: 4px;
+}
+
+.btn-notation {
+  background: transparent;
+  border: 1px solid #0f3460;
+  color: #8888aa;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-notation:hover {
+  border-color: #60b3ff;
+  color: #60b3ff;
+}
+
+.btn-notation.active {
+  background: #0f3460;
+  border-color: #60b3ff;
+  color: #60b3ff;
+}
+
+/* Song metadata pill */
+.song-info {
+  font-size: 0.75rem;
+  color: #6ee7b7;
+  background: rgba(110, 231, 183, 0.1);
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(110, 231, 183, 0.2);
+  white-space: nowrap;
+}
