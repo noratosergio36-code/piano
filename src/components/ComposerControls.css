@@ -1,0 +1,131 @@
+.composer-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* ── Base button ── */
+.composer-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid #1a5fa8;
+  background: #0f3460;
+  color: #e0e0f0;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.composer-btn-icon {
+  font-size: 0.75rem;
+  line-height: 1;
+}
+
+/* ── Record button ── */
+.record-btn {
+  border-color: #7f1d1d;
+  background: #450a0a;
+  color: #fca5a5;
+}
+
+.record-btn:hover {
+  border-color: #ef4444;
+  background: #7f1d1d;
+}
+
+.record-btn.recording {
+  border-color: #ef4444;
+  background: #dc2626;
+  color: #fff;
+}
+
+.record-btn.recording:hover {
+  background: #b91c1c;
+}
+
+/* ── Clear button ── */
+.clear-btn:hover {
+  background: #1a1a4e;
+  border-color: #60b3ff;
+}
+
+.clear-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* ── BPM label + input ── */
+.bpm-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: default;
+}
+
+.bpm-text {
+  font-size: 0.75rem;
+  color: #8888aa;
+  user-select: none;
+}
+
+.bpm-input {
+  width: 58px;
+  background: #0d0d1a;
+  border: 1px solid #0f3460;
+  border-radius: 4px;
+  color: #60b3ff;
+  font-size: 0.85rem;
+  padding: 3px 6px;
+  text-align: center;
+  -moz-appearance: textfield;
+}
+
+.bpm-input::-webkit-inner-spin-button,
+.bpm-input::-webkit-outer-spin-button {
+  opacity: 0.4;
+}
+
+.bpm-input:focus {
+  outline: none;
+  border-color: #60b3ff;
+}
+
+.bpm-input:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Note count badge ── */
+.note-count {
+  font-size: 0.73rem;
+  color: #6ee7b7;
+  background: rgba(110, 231, 183, 0.1);
+  border: 1px solid rgba(110, 231, 183, 0.2);
+  padding: 3px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+/* ── REC blink indicator ── */
+.rec-indicator {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #ef4444;
+  border: 1px solid #ef4444;
+  border-radius: 3px;
+  padding: 2px 5px;
+  animation: blink-rec 1s ease-in-out infinite;
+  user-select: none;
+}
+
+@keyframes blink-rec {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.15; }
+}

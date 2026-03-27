@@ -1,9 +1,10 @@
 import './ModeSelector.css';
 
 const MODES = [
-  { id: 'freeplay', label: 'Libre',   icon: '🎹', title: 'Toca libremente sin guía' },
-  { id: 'wait',     label: 'Espera',  icon: '⏳', title: 'La canción pausa hasta que presiones la tecla correcta' },
-  { id: 'follow',   label: 'Seguir',  icon: '🎵', title: 'La canción avanza al ritmo; sigue la melodía y las letras' },
+  { id: 'freeplay',  label: 'Libre',      icon: '🎹', title: 'Toca libremente sin guía' },
+  { id: 'wait',      label: 'Espera',     icon: '⏳', title: 'La canción pausa hasta que presiones la tecla correcta' },
+  { id: 'follow',    label: 'Seguir',     icon: '🎵', title: 'La canción avanza al ritmo; sigue la melodía y las letras' },
+  { id: 'composer',  label: 'Compositor', icon: '🎼', title: 'Graba tu interpretación y visualízala como partitura' },
 ];
 
 /**

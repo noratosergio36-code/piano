@@ -5,7 +5,10 @@ import { WaterfallCanvas } from './components/WaterfallCanvas';
 import { FileLoader } from './components/FileLoader';
 import { ModeSelector } from './components/ModeSelector';
 import { LyricsPanel } from './components/LyricsPanel';
+import { ComposerControls } from './components/ComposerControls';
+import { SheetMusicView } from './components/SheetMusicView';
 import { useMidi } from './hooks/useMidi';
+import { useMidiRecorder } from './hooks/useMidiRecorder';
 import { usePlayback } from './hooks/usePlayback';
 import { useAudioSynth } from './hooks/useAudioSynth';
 import { useAppContext } from './context/AppContext';
@@ -26,22 +29,35 @@ const DEMO_NOTES = [
 
 function PianoApp() {
   // MIDI physical keyboard notes
-  const { activeNotes: midiNotes, isSupported, error: midiError } = useMidi();
+  const { activeNotes: midiNotes, midiAccess, isSupported, error: midiError } = useMidi();
   const { state, dispatch } = useAppContext();
   const { noteOn, noteOff } = useAudioSynth();
+
+  // ── Composer Mode: recorder ────────────────────────────────────────────────
+  const handleNoteRecorded = useCallback((note) => {
+    dispatch({ type: 'ADD_RECORDED_NOTE', payload: note });
+  }, [dispatch]);
+
+  const { noteOn: recorderNoteOn, noteOff: recorderNoteOff } = useMidiRecorder({
+    midiAccess,
+    isRecording: state.isRecording,
+    onNoteRecorded: handleNoteRecorded,
+  });
 
   // Mouse/touch clicked notes — tracked separately so Wait Mode can react to them
   const [mouseNotes, setMouseNotes] = useState(new Set());
 
   const handleNoteOn = useCallback((midi) => {
     noteOn(midi);
+    recorderNoteOn(midi); // no-op when not recording
     setMouseNotes((prev) => { const s = new Set(prev); s.add(midi); return s; });
-  }, [noteOn]);
+  }, [noteOn, recorderNoteOn]);
 
   const handleNoteOff = useCallback((midi) => {
     noteOff(midi);
+    recorderNoteOff(midi); // no-op when not recording
     setMouseNotes((prev) => { const s = new Set(prev); s.delete(midi); return s; });
-  }, [noteOff]);
+  }, [noteOff, recorderNoteOff]);
 
   // Combined active notes: MIDI + mouse — used everywhere (canvas highlight, wait mode, keyboard)
   const activeNotes = useMemo(() => {
@@ -84,34 +100,53 @@ function PianoApp() {
     stop();
   }, [dispatch, stop]);
 
-  const handleLyricsLoaded = useCallback((lyrics) => {
-    dispatch({ type: 'SET_LYRICS', payload: lyrics });
+  const handleLyricsLoaded = useCallback((lyricsFile) => {
+    dispatch({ type: 'LOAD_LYRICS', payload: lyricsFile });
   }, [dispatch]);
 
   const handleModeChange = useCallback((mode) => {
     dispatch({ type: 'SET_MODE', payload: mode });
-  }, [dispatch]);
+    // Stop game loop when entering composer; stop recording when leaving it
+    if (mode === 'composer') {
+      stop();
+    } else if (state.isRecording) {
+      dispatch({ type: 'STOP_RECORDING' });
+    }
+  }, [dispatch, stop, state.isRecording]);
+
+  const isComposer = state.mode === 'composer';
 
   return (
     <div className="app-layout">
       <header className="app-header">
         <h1>Piano Maestro</h1>
 
-        <FileLoader onSongLoaded={handleSongLoaded} />
+        {/* Playback tools — hidden in Composer Mode */}
+        {!isComposer && (
+          <FileLoader
+            onSongLoaded={handleSongLoaded}
+            onLyricsLoaded={handleLyricsLoaded}
+          />
+        )}
 
-        <div className="transport-controls">
-          <button
-            className="btn-transport"
-            onClick={isPlaying ? pause : play}
-            title={isPlaying ? 'Pausar' : 'Reproducir'}
-          >
-            {isPlaying ? '⏸' : '▶'}
-          </button>
-          <button className="btn-transport" onClick={stop} title="Detener">⏹</button>
-          <span className={`time-display ${isFrozen ? 'time-frozen' : ''}`}>
-            {currentTime.toFixed(2)}s
-          </span>
-        </div>
+        {!isComposer && (
+          <div className="transport-controls">
+            <button
+              className="btn-transport"
+              onClick={isPlaying ? pause : play}
+              title={isPlaying ? 'Pausar' : 'Reproducir'}
+            >
+              {isPlaying ? '⏸' : '▶'}
+            </button>
+            <button className="btn-transport" onClick={stop} title="Detener">⏹</button>
+            <span className={`time-display ${isFrozen ? 'time-frozen' : ''}`}>
+              {currentTime.toFixed(2)}s
+            </span>
+          </div>
+        )}
+
+        {/* Composer Mode controls */}
+        {isComposer && <ComposerControls />}
 
         <ModeSelector mode={state.mode} onChange={handleModeChange} />
 
@@ -126,15 +161,7 @@ function PianoApp() {
           >Do Re Mi</button>
         </div>
 
-        {state.mode === 'follow' && (
-          <LyricsPanel
-            lyrics={state.lyrics}
-            currentTime={currentTime}
-            onLyricsLoaded={handleLyricsLoaded}
-          />
-        )}
-
-        {state.loadedSong && (
+        {!isComposer && state.loadedSong && (
           <div className="song-info">
             {state.loadedSong.tracks.length} pista{state.loadedSong.tracks.length !== 1 ? 's' : ''}
             {' · '}{state.loadedSong.bpm.toFixed(0)} BPM
@@ -149,23 +176,27 @@ function PianoApp() {
       </header>
 
       <main className="app-main">
-        {/*
-          piano-stage is exactly keyboardWidth px wide, centered with margin:auto.
-          The canvas fills this div — so note blocks and piano keys share
-          the same coordinate space with no offset needed.
-        */}
-        <div className="piano-stage" style={{ width: keyboardWidth }}>
-          <WaterfallCanvas
-            notes={notes}
-            currentTime={currentTime}
-            activeNotes={activeNotes}
-            expectedNotes={expectedNotes}
-            pressedExpected={pressedExpected}
-            isFrozen={isFrozen}
-            range={state.keyRange}
-            lyrics={state.lyrics}
-          />
-        </div>
+        {isComposer ? (
+          /* ── Composer Mode: Grand Staff sheet music view ─────────────────── */
+          <SheetMusicView />
+        ) : (
+          /* ── Playback Modes: Waterfall canvas ────────────────────────────── */
+          <div className="piano-stage" style={{ width: keyboardWidth }}>
+            <WaterfallCanvas
+              notes={notes}
+              currentTime={currentTime}
+              activeNotes={activeNotes}
+              expectedNotes={expectedNotes}
+              pressedExpected={pressedExpected}
+              isFrozen={isFrozen}
+              range={state.keyRange}
+            />
+            {/* Karaoke overlay — visible in Follow and Wait modes when lyrics are loaded */}
+            {(state.mode === 'follow' || state.mode === 'wait') && (
+              <LyricsPanel />
+            )}
+          </div>
+        )}
       </main>
 
       <footer className="app-footer">

@@ -1,141 +1,87 @@
-import { useRef, useState, useCallback } from 'react';
-import { parseLyricsFile, buildExampleLyrics, getActiveLyric } from '../utils/lyricsFormat';
+import { memo, useCallback } from 'react';
+import { useAppContext } from '../context/AppContext';
+import {
+  getActiveLine,
+  getNextLine,
+  getActiveSyllable,
+} from '../utils/lyricsFormat';
 import './LyricsPanel.css';
 
 /**
- * LyricsPanel — displays the current lyric and lets the user:
- *  1. Import a lyrics JSON file
- *  2. Edit lyrics inline (simple textarea → JSON)
- *  3. Download an example template
+ * LyricsPanel — syllable-level karaoke overlay.
  *
- * @param {{
- *   lyrics: Array<{time:number, text:string}>,
- *   currentTime: number,
- *   onLyricsLoaded: (lyrics: Array<{time:number, text:string}>) => void,
- * }} props
+ * Reads `currentLyrics` and `currentTime` directly from AppContext.
+ * Intended to be placed inside the `.piano-stage` div (position: absolute).
+ *
+ * Wrapped in React.memo so the parent doesn't trigger extra renders;
+ * the component re-renders on its own whenever AppContext updates.
  */
-export function LyricsPanel({ lyrics = [], currentTime = 0, onLyricsLoaded }) {
-  const fileInputRef = useRef(null);
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [editorText, setEditorText] = useState('');
-  const [editorError, setEditorError] = useState(null);
-  const [importStatus, setImportStatus] = useState(null);
+export const LyricsPanel = memo(function LyricsPanel() {
+  const { state, dispatch } = useAppContext();
+  const { currentLyrics, currentTime } = state;
 
-  const activeLyric = getActiveLyric(lyrics, currentTime);
+  const handleClear = useCallback(() => {
+    dispatch({ type: 'CLEAR_LYRICS' });
+  }, [dispatch]);
 
-  // ── File import ─────────────────────────────────────────────────────────
-  const handleFileChange = useCallback(async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = '';
-    try {
-      const parsed = await parseLyricsFile(file);
-      onLyricsLoaded(parsed.lyrics);
-      setImportStatus({ type: 'ok', text: `${parsed.lyrics.length} entradas cargadas` });
-    } catch (err) {
-      setImportStatus({ type: 'error', text: err.message });
-    }
-  }, [onLyricsLoaded]);
+  if (!currentLyrics) return null;
 
-  // ── Inline editor ────────────────────────────────────────────────────────
-  const openEditor = useCallback(() => {
-    const current = lyrics.length > 0
-      ? JSON.stringify({ lyrics }, null, 2)
-      : buildExampleLyrics();
-    setEditorText(current);
-    setEditorError(null);
-    setEditorOpen(true);
-  }, [lyrics]);
+  const lines         = currentLyrics.lyrics;
+  const activeLine    = getActiveLine(lines, currentTime);
+  const nextLine      = getNextLine(lines, currentTime);
 
-  const applyEditor = useCallback(() => {
-    try {
-      const raw = JSON.parse(editorText);
-      const arr = Array.isArray(raw) ? raw : raw.lyrics;
-      if (!Array.isArray(arr)) throw new Error('"lyrics" debe ser un array.');
-      arr.forEach((e, i) => {
-        if (typeof e.time !== 'number') throw new Error(`Entrada ${i}: "time" debe ser número.`);
-        if (typeof e.text !== 'string') throw new Error(`Entrada ${i}: "text" debe ser string.`);
-      });
-      const sorted = [...arr].sort((a, b) => a.time - b.time);
-      onLyricsLoaded(sorted);
-      setEditorOpen(false);
-      setImportStatus({ type: 'ok', text: `${sorted.length} entradas guardadas` });
-    } catch (err) {
-      setEditorError(err.message);
-    }
-  }, [editorText, onLyricsLoaded]);
-
-  const downloadTemplate = useCallback(() => {
-    const blob = new Blob([buildExampleLyrics()], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'lyrics-template.json';
-    a.click();
-    URL.revokeObjectURL(url);
-  }, []);
+  // Index of the active syllable in the active line (-1 = none yet)
+  const activeSyl   = activeLine ? getActiveSyllable(activeLine.syllables, currentTime) : null;
+  const activeIdx   = activeLine ? activeLine.syllables.indexOf(activeSyl) : -1;
 
   return (
-    <div className="lyrics-panel">
-      {/* Active lyric display */}
-      <div className="lyrics-display" aria-live="polite">
-        {activeLyric
-          ? <span className="lyrics-text">{activeLyric.text}</span>
-          : <span className="lyrics-empty">{lyrics.length > 0 ? '…' : 'Sin letra'}</span>
-        }
-      </div>
+    <div className="karaoke-overlay" aria-live="polite" aria-label="Letras de la canción">
 
-      {/* Controls */}
-      <div className="lyrics-controls">
-        <button className="btn-lyrics" onClick={() => fileInputRef.current?.click()} title="Importar JSON de letras">
-          ↑ Importar
-        </button>
-        <button className="btn-lyrics" onClick={openEditor} title="Editar letras en línea">
-          ✎ Editar
-        </button>
-        <button className="btn-lyrics" onClick={downloadTemplate} title="Descargar plantilla">
-          ↓ Plantilla
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".json"
-          onChange={handleFileChange}
-          style={{ display: 'none' }}
-        />
-      </div>
+      {/* ── Dismiss button ───────────────────────────────────────────────── */}
+      <button
+        className="karaoke-clear"
+        onClick={handleClear}
+        title="Quitar letras"
+        aria-label="Quitar letras"
+      >
+        ✕
+      </button>
 
-      {importStatus && (
-        <div className={`lyrics-status lyrics-status--${importStatus.type}`}>
-          {importStatus.text}
+      {/* ── Active line ──────────────────────────────────────────────────── */}
+      {activeLine ? (
+        <div className="karaoke-line karaoke-line--active">
+          {activeLine.syllables.map((syl, i) => (
+            <span
+              key={i}
+              className={
+                'karaoke-syllable' +
+                (i === activeIdx ? ' syllable--active' : '') +
+                (activeIdx >= 0 && i < activeIdx ? ' syllable--past' : '')
+              }
+            >
+              {syl.text}
+            </span>
+          ))}
+        </div>
+      ) : (
+        /* Show title or a neutral line while between lines */
+        <div className="karaoke-line karaoke-line--idle">
+          <span className="karaoke-title">
+            {currentLyrics.title ?? '♪'}
+          </span>
         </div>
       )}
 
-      {/* Inline JSON editor modal */}
-      {editorOpen && (
-        <div className="lyrics-editor-overlay" onClick={(e) => e.target === e.currentTarget && setEditorOpen(false)}>
-          <div className="lyrics-editor-modal">
-            <div className="editor-header">
-              <span>Editor de letras (JSON)</span>
-              <button className="btn-close" onClick={() => setEditorOpen(false)}>✕</button>
-            </div>
-            <p className="editor-hint">
-              Array de <code>{`{ "time": segundos, "text": "sílaba" }`}</code>
-            </p>
-            <textarea
-              className="editor-textarea"
-              value={editorText}
-              onChange={(e) => setEditorText(e.target.value)}
-              spellCheck={false}
-            />
-            {editorError && <div className="editor-error">{editorError}</div>}
-            <div className="editor-actions">
-              <button className="btn-apply" onClick={applyEditor}>Aplicar</button>
-              <button className="btn-cancel" onClick={() => setEditorOpen(false)}>Cancelar</button>
-            </div>
-          </div>
+      {/* ── Next line (anticipation) ─────────────────────────────────────── */}
+      {nextLine && (
+        <div className="karaoke-line karaoke-line--next" aria-hidden="true">
+          {nextLine.syllables.map((syl, i) => (
+            <span key={i} className="karaoke-syllable">
+              {syl.text}
+            </span>
+          ))}
         </div>
       )}
     </div>
   );
-}
+});

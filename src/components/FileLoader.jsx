@@ -1,68 +1,84 @@
 import { useRef, useState, useCallback } from 'react';
 import { parseMidiFile } from '../utils/midiParser';
 import { parseMusicXmlFile } from '../utils/xmlParser';
+import { parseLyricsFile } from '../utils/lyricsFormat';
 import './FileLoader.css';
 
-const ACCEPTED_TYPES = '.mid,.midi,.xml,.musicxml';
+const ACCEPTED_TYPES = '.mid,.midi,.xml,.musicxml,.json';
 
 /**
- * FileLoader component.
- * Supports click-to-browse and drag & drop for .mid / .xml files.
- * Calls onSongLoaded(parsedSong) when parsing succeeds.
+ * FileLoader — supports click-to-browse and drag & drop.
+ * Accepts a MIDI/XML song file and an optional lyrics JSON in a single drop.
  *
- * @param {{ onSongLoaded: (song: import('../utils/midiParser').ParsedSong) => void }} props
+ * @param {{
+ *   onSongLoaded:   (song: import('../utils/midiParser').ParsedSong) => void,
+ *   onLyricsLoaded?: (file: import('../utils/lyricsFormat').LyricsFile) => void,
+ * }} props
  */
-export function FileLoader({ onSongLoaded }) {
+export function FileLoader({ onSongLoaded, onLyricsLoaded }) {
   const inputRef = useRef(null);
   const [dragging, setDragging] = useState(false);
-  const [status, setStatus] = useState(null); // { type: 'loading'|'error'|'ok', text: string }
+  const [status, setStatus]   = useState(null); // { type: 'loading'|'error'|'ok', text: string }
 
-  const processFile = useCallback(async (file) => {
-    const name = file.name.toLowerCase();
-    setStatus({ type: 'loading', text: `Cargando ${file.name}…` });
+  /**
+   * Process an array of files: each is handled by extension.
+   * MIDI/XML → song, JSON → lyrics.
+   * @param {File[]} files
+   */
+  const processFiles = useCallback(async (files) => {
+    const known = files.filter((f) =>
+      /\.(mid|midi|xml|musicxml|json)$/i.test(f.name)
+    );
 
+    if (known.length === 0) {
+      setStatus({ type: 'error', text: 'Formato no soportado. Usa .mid, .xml o .json' });
+      return;
+    }
+
+    setStatus({ type: 'loading', text: 'Cargando…' });
+
+    const parts = [];
     try {
-      let song;
-      if (name.endsWith('.mid') || name.endsWith('.midi')) {
-        song = await parseMidiFile(file);
-      } else if (name.endsWith('.xml') || name.endsWith('.musicxml')) {
-        song = await parseMusicXmlFile(file);
-      } else {
-        setStatus({ type: 'error', text: 'Formato no soportado. Usa .mid o .xml' });
-        return;
-      }
+      for (const file of known) {
+        const name = file.name.toLowerCase();
 
-      const noteCount = song.notes.length;
-      const duration = song.duration.toFixed(1);
-      setStatus({
-        type: 'ok',
-        text: `${file.name} — ${noteCount} notas · ${duration}s · ${song.bpm.toFixed(0)} BPM`,
-      });
-      onSongLoaded(song);
+        if (name.endsWith('.mid') || name.endsWith('.midi')) {
+          const song = await parseMidiFile(file);
+          onSongLoaded(song);
+          parts.push(`${file.name} — ${song.notes.length} notas · ${song.bpm.toFixed(0)} BPM`);
+
+        } else if (name.endsWith('.xml') || name.endsWith('.musicxml')) {
+          const song = await parseMusicXmlFile(file);
+          onSongLoaded(song);
+          parts.push(`${file.name} — ${song.notes.length} notas`);
+
+        } else if (name.endsWith('.json')) {
+          const lyricsFile = await parseLyricsFile(file);
+          onLyricsLoaded?.(lyricsFile);
+          parts.push(`${file.name} — ${lyricsFile.lyrics.length} línea${lyricsFile.lyrics.length !== 1 ? 's' : ''}`);
+        }
+      }
+      setStatus({ type: 'ok', text: parts.join('   ·   ') });
     } catch (err) {
       console.error(err);
       setStatus({ type: 'error', text: `Error: ${err.message}` });
     }
-  }, [onSongLoaded]);
+  }, [onSongLoaded, onLyricsLoaded]);
 
   const handleFileChange = useCallback((e) => {
-    const file = e.target.files?.[0];
-    if (file) processFile(file);
-    e.target.value = ''; // allow re-selecting the same file
-  }, [processFile]);
+    const files = Array.from(e.target.files ?? []);
+    if (files.length) processFiles(files);
+    e.target.value = ''; // allow re-selecting the same file(s)
+  }, [processFiles]);
 
   const handleDrop = useCallback((e) => {
     e.preventDefault();
     setDragging(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) processFile(file);
-  }, [processFile]);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length) processFiles(files);
+  }, [processFiles]);
 
-  const handleDragOver = useCallback((e) => {
-    e.preventDefault();
-    setDragging(true);
-  }, []);
-
+  const handleDragOver  = useCallback((e) => { e.preventDefault(); setDragging(true); }, []);
   const handleDragLeave = useCallback(() => setDragging(false), []);
 
   return (
@@ -76,11 +92,12 @@ export function FileLoader({ onSongLoaded }) {
         role="button"
         tabIndex={0}
         onKeyDown={(e) => e.key === 'Enter' && inputRef.current?.click()}
-        aria-label="Cargar archivo MIDI o MusicXML"
+        aria-label="Cargar archivo MIDI, MusicXML o JSON de letras"
       >
         <span className="drop-icon">🎵</span>
         <span className="drop-text">
-          Arrastra un archivo <strong>.mid</strong> o <strong>.xml</strong>
+          Arrastra <strong>.mid</strong> / <strong>.xml</strong>
+          {' '}+ <strong>.json</strong> letras
           <br />
           <small>o haz clic para explorar</small>
         </span>
@@ -88,6 +105,7 @@ export function FileLoader({ onSongLoaded }) {
           ref={inputRef}
           type="file"
           accept={ACCEPTED_TYPES}
+          multiple
           onChange={handleFileChange}
           style={{ display: 'none' }}
         />

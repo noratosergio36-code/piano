@@ -1,0 +1,41 @@
+.sheet-music-wrapper {
+  flex: 1;
+  overflow: auto;
+  background: #f5f0e8;  /* warm cream — traditional music paper */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 20px;
+  gap: 12px;
+}
+
+.sheet-hint {
+  font-size: 0.9rem;
+  color: #888;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.sheet-hint strong {
+  color: #555;
+}
+
+.sheet-music-container {
+  /* VexFlow injects an <svg> here */
+}
+
+.sheet-music-container svg {
+  display: block;
+  /* VexFlow renders black on transparent — shows correctly on cream background */
+}
+
+.sheet-error {
+  color: #c0392b;
+  font-size: 0.85rem;
+  font-family: monospace;
+  padding: 12px;
+  background: rgba(192, 57, 43, 0.1);
+  border-radius: 4px;
+  border: 1px solid rgba(192, 57, 43, 0.3);
+}

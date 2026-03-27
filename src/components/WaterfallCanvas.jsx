@@ -37,7 +37,6 @@ function roundRect(ctx, x, y, w, h, r) {
  *   pressedExpected: Set<number>,
  *   isFrozen: boolean,
  *   range: {start:number, end:number},
- *   lyrics: Array<{time:number, text:string}>,
  * }} props
  */
 export function WaterfallCanvas({
@@ -48,7 +47,6 @@ export function WaterfallCanvas({
   pressedExpected = new Set(),
   isFrozen = false,
   range = PIANO_CONFIG.defaultRange,
-  lyrics = [],
 }) {
   const canvasRef = useRef(null);
   const animRef = useRef(null);
@@ -60,7 +58,6 @@ export function WaterfallCanvas({
   const expectedNotesRef = useRef(expectedNotes);
   const pressedExpectedRef = useRef(pressedExpected);
   const isFrozenRef = useRef(isFrozen);
-  const lyricsRef = useRef(lyrics);
 
   useEffect(() => { currentTimeRef.current = currentTime; }, [currentTime]);
   useEffect(() => { notesRef.current = notes; }, [notes]);
@@ -68,7 +65,6 @@ export function WaterfallCanvas({
   useEffect(() => { expectedNotesRef.current = expectedNotes; }, [expectedNotes]);
   useEffect(() => { pressedExpectedRef.current = pressedExpected; }, [pressedExpected]);
   useEffect(() => { isFrozenRef.current = isFrozen; }, [isFrozen]);
-  useEffect(() => { lyricsRef.current = lyrics; }, [lyrics]);
 
   const keyMap = useMemo(() => buildKeyMap(range.start, range.end), [range]);
 
@@ -180,22 +176,6 @@ export function WaterfallCanvas({
         ctx.textAlign = 'center';
         ctx.fillStyle = `rgba(96,179,255,${0.6 + pulse * 0.4})`;
         ctx.fillText('⏳  Presiona las teclas resaltadas', W / 2, 28);
-      }
-
-      // Lyrics overlay (Follow Mode)
-      const currentLyric = lyricsRef.current
-        .slice()
-        .reverse()
-        .find((l) => l.time <= t);
-
-      if (currentLyric) {
-        ctx.font = 'bold 28px "Segoe UI", sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillStyle = 'rgba(255,255,255,0.9)';
-        ctx.shadowColor = '#000';
-        ctx.shadowBlur = 8;
-        ctx.fillText(currentLyric.text, W / 2, H - 20);
-        ctx.shadowBlur = 0;
       }
 
       // Scan line

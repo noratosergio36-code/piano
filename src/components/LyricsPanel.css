@@ -1,170 +1,127 @@
-.lyrics-panel {
+/* ── Karaoke Overlay ─────────────────────────────────────────────────────────
+   Positioned absolutely inside .piano-stage (which is position:relative).
+   pointer-events:none lets clicks pass through to the canvas below;
+   only the dismiss button overrides this.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+.karaoke-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  z-index: 10;
+
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  min-width: 160px;
-}
-
-.lyrics-display {
-  min-height: 28px;
-  display: flex;
   align-items: center;
+  gap: 6px;
+  padding: 16px 24px 20px;
+
+  /* Gradient vignette behind text for readability */
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.72) 0%,
+    rgba(0, 0, 0, 0.38) 55%,
+    transparent 100%
+  );
 }
 
-.lyrics-text {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: #ffffff;
-  text-shadow: 0 0 12px rgba(96, 179, 255, 0.8);
-  letter-spacing: 0.02em;
-  animation: lyric-pop 0.15s ease;
-}
-
-@keyframes lyric-pop {
-  from { transform: scale(1.15); opacity: 0.6; }
-  to   { transform: scale(1);    opacity: 1; }
-}
-
-.lyrics-empty {
-  font-size: 0.8rem;
-  color: #444466;
-}
-
-.lyrics-controls {
-  display: flex;
-  gap: 4px;
-}
-
-.btn-lyrics {
-  background: transparent;
-  border: 1px solid #1a2a4a;
-  color: #6666aa;
-  padding: 3px 8px;
-  border-radius: 4px;
-  font-size: 0.7rem;
+/* ── Dismiss button ── */
+.karaoke-clear {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  pointer-events: auto; /* override overlay's none */
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.45);
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-size: 0.65rem;
+  line-height: 1;
   cursor: pointer;
-  transition: all 0.15s;
-  white-space: nowrap;
-}
-
-.btn-lyrics:hover {
-  border-color: #60b3ff;
-  color: #60b3ff;
-}
-
-.lyrics-status {
-  font-size: 0.7rem;
-  padding: 2px 8px;
-  border-radius: 3px;
-}
-
-.lyrics-status--ok    { color: #6ee7b7; background: rgba(110,231,183,0.1); }
-.lyrics-status--error { color: #f87171; background: rgba(248,113,113,0.1); }
-
-/* Modal overlay */
-.lyrics-editor-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.75);
+  transition: background 0.15s, color 0.15s;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
 }
 
-.lyrics-editor-modal {
-  background: #16213e;
-  border: 1px solid #0f3460;
-  border-radius: 10px;
-  width: min(600px, 90vw);
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 20px;
-}
-
-.editor-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: #c0c0e0;
-}
-
-.btn-close {
-  background: none;
-  border: none;
-  color: #666;
-  font-size: 1.1rem;
-  cursor: pointer;
-  padding: 0 4px;
-}
-
-.btn-close:hover { color: #f87171; }
-
-.editor-hint {
-  font-size: 0.75rem;
-  color: #555577;
-}
-
-.editor-hint code {
-  color: #a78bfa;
-  font-family: monospace;
-}
-
-.editor-textarea {
-  flex: 1;
-  min-height: 280px;
-  background: #0d0d1a;
-  border: 1px solid #0f3460;
-  border-radius: 6px;
-  color: #c0d8ff;
-  font-family: 'Cascadia Code', 'Consolas', monospace;
-  font-size: 0.82rem;
-  padding: 10px;
-  resize: vertical;
-  outline: none;
-}
-
-.editor-textarea:focus { border-color: #60b3ff; }
-
-.editor-error {
-  font-size: 0.78rem;
+.karaoke-clear:hover {
+  background: rgba(248, 113, 113, 0.25);
   color: #f87171;
-  background: rgba(248,113,113,0.1);
-  padding: 6px 10px;
-  border-radius: 4px;
+  border-color: rgba(248, 113, 113, 0.4);
 }
 
-.editor-actions {
+/* ── Line containers ── */
+.karaoke-line {
   display: flex;
-  gap: 8px;
-  justify-content: flex-end;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: baseline;
+  gap: 0; /* spacing comes from the syllable text itself (trailing spaces) */
+  line-height: 1.15;
 }
 
-.btn-apply {
-  background: #0f3460;
-  border: 1px solid #60b3ff;
-  color: #60b3ff;
-  padding: 6px 18px;
-  border-radius: 6px;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: background 0.15s;
+.karaoke-line--active {
+  /* active line rendered at full size */
 }
 
-.btn-apply:hover { background: #1a5fa8; }
-
-.btn-cancel {
-  background: transparent;
-  border: 1px solid #333355;
-  color: #555577;
-  padding: 6px 14px;
-  border-radius: 6px;
-  font-size: 0.85rem;
-  cursor: pointer;
+.karaoke-line--next {
+  opacity: 0.42;
+  transform: scale(0.82);
+  transform-origin: center top;
+  margin-top: 2px;
 }
 
-.btn-cancel:hover { border-color: #666699; color: #9999bb; }
+.karaoke-line--idle {
+  opacity: 0.55;
+}
+
+/* ── Syllables ── */
+.karaoke-syllable {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: clamp(1.5rem, 3.5vw, 2.4rem);
+  font-weight: 700;
+  white-space: pre-wrap;          /* preserve intentional trailing spaces */
+  color: rgba(255, 255, 255, 0.80);
+  text-shadow:
+    0 1px 6px rgba(0, 0, 0, 0.9),
+    0 2px 14px rgba(0, 0, 0, 0.6);
+  letter-spacing: 0.01em;
+  transition: color 0.07s ease, text-shadow 0.07s ease;
+  user-select: none;
+}
+
+/* Past syllables — dimmed */
+.syllable--past {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+/* Active syllable — golden karaoke highlight */
+.syllable--active {
+  color: #FFD700;
+  text-shadow:
+    0 0 18px rgba(255, 215, 0, 0.85),
+    0 0 36px rgba(255, 200, 0, 0.40),
+    0 1px 8px rgba(0, 0, 0, 0.95);
+  animation: syllable-pop 0.11s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes syllable-pop {
+  from { transform: scale(1.14); }
+  to   { transform: scale(1); }
+}
+
+/* Title shown while between lines */
+.karaoke-title {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: clamp(1rem, 2.5vw, 1.6rem);
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.35);
+  letter-spacing: 0.04em;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.8);
+  font-style: italic;
+  user-select: none;
+}
