@@ -7,7 +7,7 @@ import { useRef, useState, useCallback, useEffect } from 'react';
  *  - The RAF draw loop (always running while playing, keeps canvas alive)
  *  - Time advancement (can be frozen independently for Wait Mode)
  *
- * @param {{ onTick?: (currentTime: number) => void }} options
+ * @param {{ onTick?: (currentTime: number) => void, playbackRate?: number }} options
  * @returns {{
  *   currentTime: number,
  *   isPlaying: boolean,
@@ -20,7 +20,7 @@ import { useRef, useState, useCallback, useEffect } from 'react';
  *   unfreeze: () => void,
  * }}
  */
-export function useGameLoop({ onTick } = {}) {
+export function useGameLoop({ onTick, playbackRate = 1.0 } = {}) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isFrozen, setIsFrozen] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -30,13 +30,29 @@ export function useGameLoop({ onTick } = {}) {
   const startGameRef = useRef(0);
   const frozenRef = useRef(false);   // readable in RAF without stale closure
   const onTickRef = useRef(onTick);
+  const playbackRateRef = useRef(playbackRate);
 
   useEffect(() => { onTickRef.current = onTick; }, [onTick]);
 
+  // When playbackRate changes mid-playback: snapshot the current game time
+  // and reset the wall-clock origin so elapsed resets to 0 at the new rate.
+  // Without this, the game time would jump because the old elapsed * new rate ≠ expected time.
+  useEffect(() => {
+    playbackRateRef.current = playbackRate;
+    if (rafRef.current && !frozenRef.current) {
+      // Re-anchor: treat current game time as the new startGameRef
+      setCurrentTime((t) => {
+        startGameRef.current = t;
+        startWallRef.current = performance.now();
+        return t;
+      });
+    }
+  }, [playbackRate]);
+
   const tick = useCallback(() => {
     if (!frozenRef.current) {
-      const elapsed = (performance.now() - startWallRef.current) / 1000;
-      const gameTime = startGameRef.current + elapsed;
+      const wallElapsed = (performance.now() - startWallRef.current) / 1000;
+      const gameTime = startGameRef.current + wallElapsed * playbackRateRef.current;
       setCurrentTime(gameTime);
       onTickRef.current?.(gameTime);
     }

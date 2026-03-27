@@ -1,11 +1,15 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useGameLoop } from './useGameLoop';
 
-/** Tolerance in seconds: notes within this window are considered "at this beat" */
-const BEAT_TOLERANCE = 0.08;
+/**
+ * Fixed tolerance for grouping simultaneous notes into chords (80 ms).
+ * This is separate from the user-configurable hit-window tolerance and
+ * should not be changed — it reflects typical MIDI recording imprecision.
+ */
+const CHORD_GROUP_TOLERANCE = 0.08;
 
 /**
- * Groups notes by their start time (quantized to BEAT_TOLERANCE).
+ * Groups notes by their start time (quantized to CHORD_GROUP_TOLERANCE).
  * Returns a sorted array of beat objects: [{ time, midis: Set<number> }]
  * @param {Array<{midi:number, time:number}>} notes
  * @returns {Array<{time:number, midis:Set<number>}>}
@@ -14,7 +18,7 @@ function buildBeatMap(notes) {
   const beats = [];
   for (const note of notes) {
     const last = beats[beats.length - 1];
-    if (last && Math.abs(note.time - last.time) <= BEAT_TOLERANCE) {
+    if (last && Math.abs(note.time - last.time) <= CHORD_GROUP_TOLERANCE) {
       last.midis.add(note.midi);
     } else {
       beats.push({ time: note.time, midis: new Set([note.midi]) });
@@ -27,54 +31,131 @@ function buildBeatMap(notes) {
  * usePlayback — high-level playback hook.
  *
  * Wraps useGameLoop and adds:
- *  - **Wait Mode**: freezes time when the next beat arrives; resumes only when
- *    the user presses ALL expected notes on their MIDI keyboard.
- *  - **Follow Mode**: time advances freely; activeNotes are ignored for pacing.
- *  - **Free Play**: no song, time still runs (for exploration / practice).
+ *  - **Wait Mode**: freezes time when the next beat arrives within the hit
+ *    window; resumes only when the user presses ALL expected notes.
+ *  - **Follow Mode**: time advances freely.
+ *  - **Free Play**: no song, time still runs.
+ *  - **Hand practice**: filters the beat map to `practicingHands` notes;
+ *    auto-fires `onAutoNoteOn`/`onAutoNoteOff` for the non-practiced hand.
  *
  * @param {{
- *   notes: Array<{midi:number, time:number, duration:number, track:number}>,
- *   activeNotes: Set<number>,
- *   mode: 'freeplay' | 'wait' | 'follow',
- *   onTick?: (t: number) => void,
+ *   notes:           Array<{midi:number, time:number, duration:number, track:number, hand:'left'|'right'}>,
+ *   activeNotes:     Set<number>,
+ *   mode:            'freeplay' | 'wait' | 'follow' | 'composer',
+ *   onTick?:         (t: number) => void,
+ *   toleranceSec?:   number,
+ *   dispatch?:       (action: {type:string, payload?:unknown}) => void,
+ *   practicingHands?: ('left'|'right')[],
+ *   onAutoNoteOn?:   (midi: number) => void,
+ *   onAutoNoteOff?:  (midi: number) => void,
  * }} options
  * @returns {{
- *   currentTime: number,
- *   isPlaying: boolean,
- *   isFrozen: boolean,
- *   expectedNotes: Set<number>,
+ *   currentTime:    number,
+ *   isPlaying:      boolean,
+ *   isFrozen:       boolean,
+ *   expectedNotes:  Set<number>,
  *   pressedExpected: Set<number>,
- *   play: () => void,
- *   pause: () => void,
- *   stop: () => void,
+ *   play:   () => void,
+ *   pause:  () => void,
+ *   stop:   () => void,
  *   seekTo: (t: number) => void,
  * }}
  */
-export function usePlayback({ notes = [], activeNotes, mode, onTick }) {
+export function usePlayback({
+  notes = [],
+  activeNotes,
+  mode,
+  onTick,
+  toleranceSec = 0.08,
+  dispatch = null,
+  practicingHands = ['left', 'right'],
+  onAutoNoteOn = null,
+  onAutoNoteOff = null,
+  playbackRate = 1.0,
+}) {
   const { currentTime, isPlaying, isFrozen, play, pause, stop, seekTo, freeze, unfreeze } =
-    useGameLoop({ onTick });
+    useGameLoop({ onTick, playbackRate });
 
-  // Current beat the loop is waiting on (Wait Mode)
-  const [expectedNotes, setExpectedNotes] = useState(new Set());
+  // ── Tolerance ref — updated without triggering effect re-runs ────────────
+  // This lets the hit-window change take effect on the very next RAF tick
+  // without restarting any hooks.
+  const toleranceRef = useRef(toleranceSec);
+  useEffect(() => { toleranceRef.current = toleranceSec; }, [toleranceSec]);
+
+  // ── Local Wait Mode state ────────────────────────────────────────────────
+  const [expectedNotes, setExpectedNotes]   = useState(new Set());
   const [pressedExpected, setPressedExpected] = useState(new Set());
 
-  const beatMapRef = useRef([]);
-  const beatIndexRef = useRef(0);           // index of next beat to serve
-  const waitingBeatRef = useRef(null);      // beat currently being waited on
-  const pressedSetRef = useRef(new Set());  // tracks which expected notes were pressed
+  const beatMapRef      = useRef([]);
+  const beatIndexRef    = useRef(0);
+  const waitingBeatRef  = useRef(null);
+  const pressedSetRef   = useRef(new Set());
 
-  // Rebuild beat map when notes change
+  // Keep dispatch in a ref so effects don't restart when it changes identity
+  const dispatchRef = useRef(dispatch);
+  useEffect(() => { dispatchRef.current = dispatch; }, [dispatch]);
+
+  // ── Autoplay refs — updated without restarting any hooks ─────────────────
+  const onAutoNoteOnRef  = useRef(onAutoNoteOn);
+  const onAutoNoteOffRef = useRef(onAutoNoteOff);
+  useEffect(() => { onAutoNoteOnRef.current  = onAutoNoteOn;  }, [onAutoNoteOn]);
+  useEffect(() => { onAutoNoteOffRef.current = onAutoNoteOff; }, [onAutoNoteOff]);
+
+  const practicingHandsRef = useRef(practicingHands);
+  useEffect(() => { practicingHandsRef.current = practicingHands; }, [practicingHands]);
+
+  // Autoplay schedule: sorted array of { time, midi, duration } for non-practiced hand
+  const autoScheduleRef = useRef([]);
+  const autoIndexRef    = useRef(0);
+  // Track which autoplay notes are currently sounding so we can send noteOff
+  const autoActiveRef   = useRef(new Map()); // midi → endTime
+
+  // ── Helpers for syncing to AppContext ────────────────────────────────────
+  const syncFreeze = useCallback((midis) => {
+    freeze();
+    dispatchRef.current?.({ type: 'FREEZE_TIME' });
+    dispatchRef.current?.({ type: 'SET_EXPECTED_NOTES', payload: midis });
+  }, [freeze]);
+
+  const syncUnfreeze = useCallback(() => {
+    unfreeze();
+    dispatchRef.current?.({ type: 'UNFREEZE_TIME' });
+    dispatchRef.current?.({ type: 'SET_EXPECTED_NOTES', payload: [] });
+  }, [unfreeze]);
+
+  // ── Rebuild beat map + autoplay schedule when notes or practicingHands change
   useEffect(() => {
     const sorted = [...notes].sort((a, b) => a.time - b.time);
-    beatMapRef.current = buildBeatMap(sorted);
+    const hands  = practicingHandsRef.current;
+
+    // Beat map uses only notes the player must press
+    const practiceNotes = sorted.filter((n) =>
+      hands.includes(n.hand ?? 'right')
+    );
+    beatMapRef.current   = buildBeatMap(practiceNotes);
     beatIndexRef.current = 0;
     waitingBeatRef.current = null;
-    pressedSetRef.current = new Set();
+    pressedSetRef.current  = new Set();
     setExpectedNotes(new Set());
     setPressedExpected(new Set());
-  }, [notes]);
 
-  // Reset beat index when user seeks or stops
+    // Autoplay schedule: notes NOT in practicingHands
+    autoScheduleRef.current = sorted.filter((n) =>
+      !hands.includes(n.hand ?? 'right')
+    );
+    autoIndexRef.current  = 0;
+    autoActiveRef.current = new Map();
+  }, [notes, practicingHands]);
+
+  // ── Helpers to silence all currently-sounding autoplay notes ─────────────
+  const silenceAutoplay = useCallback(() => {
+    autoActiveRef.current.forEach((_, midi) => {
+      onAutoNoteOffRef.current?.(midi);
+    });
+    autoActiveRef.current = new Map();
+  }, []);
+
+  // ── Wrapped stop/seek — reset beat tracking ──────────────────────────────
   const wrappedStop = useCallback(() => {
     stop();
     beatIndexRef.current = 0;
@@ -82,48 +163,62 @@ export function usePlayback({ notes = [], activeNotes, mode, onTick }) {
     pressedSetRef.current = new Set();
     setExpectedNotes(new Set());
     setPressedExpected(new Set());
-  }, [stop]);
+    dispatchRef.current?.({ type: 'UNFREEZE_TIME' });
+    dispatchRef.current?.({ type: 'SET_EXPECTED_NOTES', payload: [] });
+    autoIndexRef.current = 0;
+    silenceAutoplay();
+  }, [stop, silenceAutoplay]);
 
   const wrappedSeekTo = useCallback((t) => {
     seekTo(t);
-    // Advance beatIndex past all beats before t
     const beats = beatMapRef.current;
     let idx = 0;
-    while (idx < beats.length && beats[idx].time < t - BEAT_TOLERANCE) idx++;
+    while (idx < beats.length && beats[idx].time < t - CHORD_GROUP_TOLERANCE) idx++;
     beatIndexRef.current = idx;
     waitingBeatRef.current = null;
     pressedSetRef.current = new Set();
     setExpectedNotes(new Set());
     setPressedExpected(new Set());
-  }, [seekTo]);
+    // Reset autoplay to the correct position
+    const sched = autoScheduleRef.current;
+    let ai = 0;
+    while (ai < sched.length && sched[ai].time < t) ai++;
+    autoIndexRef.current = ai;
+    silenceAutoplay();
+  }, [seekTo, silenceAutoplay]);
 
-  // ── Wait Mode: freeze when next beat arrives ─────────────────────────────
+  // ── Wait Mode: freeze when playhead enters the hit window ────────────────
+  //
+  // Uses toleranceRef.current (not toleranceSec) so a changed tolerance takes
+  // effect immediately without restarting this effect.
   useEffect(() => {
     if (mode !== 'wait' || !isPlaying) return;
 
     const beats = beatMapRef.current;
-    const idx = beatIndexRef.current;
+    const idx   = beatIndexRef.current;
     if (idx >= beats.length) return;
 
     const nextBeat = beats[idx];
 
-    // Has the playhead reached this beat?
-    if (currentTime >= nextBeat.time - BEAT_TOLERANCE && !isFrozen) {
+    // Freeze when the playhead is within the configurable hit window
+    if (currentTime >= nextBeat.time - toleranceRef.current && !isFrozen) {
       waitingBeatRef.current = nextBeat;
-      pressedSetRef.current = new Set();
+      pressedSetRef.current  = new Set();
       setExpectedNotes(new Set(nextBeat.midis));
       setPressedExpected(new Set());
-      freeze();
+      syncFreeze([...nextBeat.midis]);
     }
-  }, [currentTime, mode, isPlaying, isFrozen, freeze]);
+  }, [currentTime, mode, isPlaying, isFrozen, syncFreeze]);
 
-  // ── Wait Mode: check if user pressed all expected notes ──────────────────
+  // ── Wait Mode: validate key presses against expected notes ───────────────
+  //
+  // Runs whenever activeNotes changes (i.e. any key press/release).
+  // All math is done on refs — no state reads → zero React overhead.
   useEffect(() => {
     if (mode !== 'wait' || !isFrozen) return;
     const waiting = waitingBeatRef.current;
     if (!waiting) return;
 
-    // Update pressed set with newly active notes that are expected
     let updated = false;
     for (const midi of activeNotes) {
       if (waiting.midis.has(midi) && !pressedSetRef.current.has(midi)) {
@@ -136,26 +231,53 @@ export function usePlayback({ notes = [], activeNotes, mode, onTick }) {
       setPressedExpected(new Set(pressedSetRef.current));
     }
 
-    // All expected notes pressed → advance to next beat and unfreeze
+    // All required notes pressed → advance beat index and unfreeze
     const allPressed = [...waiting.midis].every((m) => pressedSetRef.current.has(m));
     if (allPressed) {
       beatIndexRef.current += 1;
       waitingBeatRef.current = null;
-      pressedSetRef.current = new Set();
+      pressedSetRef.current  = new Set();
       setExpectedNotes(new Set());
       setPressedExpected(new Set());
-      unfreeze();
+      syncUnfreeze();
     }
-  }, [activeNotes, mode, isFrozen, unfreeze]);
+  }, [activeNotes, mode, isFrozen, syncUnfreeze]);
 
-  // ── Follow / Free mode: clear any wait state ─────────────────────────────
+  // ── Autoplay: fire noteOn/noteOff for non-practiced-hand notes ───────────
+  // Runs every RAF tick (currentTime changes). Fires noteOn for notes whose
+  // start time has passed, and noteOff for notes whose end time has passed.
+  useEffect(() => {
+    if (!isPlaying) return;
+
+    const t     = currentTime;
+    const sched = autoScheduleRef.current;
+
+    // Fire noteOn for all upcoming notes whose start time <= t
+    while (autoIndexRef.current < sched.length) {
+      const note = sched[autoIndexRef.current];
+      if (note.time > t) break;
+      onAutoNoteOnRef.current?.(note.midi);
+      autoActiveRef.current.set(note.midi, note.time + note.duration);
+      autoIndexRef.current += 1;
+    }
+
+    // Fire noteOff for notes that have ended
+    autoActiveRef.current.forEach((endTime, midi) => {
+      if (t >= endTime) {
+        onAutoNoteOffRef.current?.(midi);
+        autoActiveRef.current.delete(midi);
+      }
+    });
+  }, [currentTime, isPlaying]);
+
+  // ── Follow / Free mode: clear wait state if somehow frozen ───────────────
   useEffect(() => {
     if (mode !== 'wait' && isFrozen) {
-      unfreeze();
       setExpectedNotes(new Set());
       setPressedExpected(new Set());
+      syncUnfreeze();
     }
-  }, [mode, isFrozen, unfreeze]);
+  }, [mode, isFrozen, syncUnfreeze]);
 
   return {
     currentTime,
@@ -165,7 +287,7 @@ export function usePlayback({ notes = [], activeNotes, mode, onTick }) {
     pressedExpected,
     play,
     pause,
-    stop: wrappedStop,
+    stop:   wrappedStop,
     seekTo: wrappedSeekTo,
   };
 }

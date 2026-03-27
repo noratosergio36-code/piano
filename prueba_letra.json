@@ -1,0 +1,36 @@
+{
+  "songId": "estrellita-es-01",
+  "title": "Estrellita ¿Dónde Estás?",
+  "language": "es",
+  "associatedMidi": "estrellita.mid",
+  "lyrics": [
+    {
+      "lineId": 1,
+      "startTime": 0.0,
+      "endTime": 3.9,
+      "syllables": [
+        { "text": "Es", "time": 0.0, "duration": 0.4 },
+        { "text": "tre", "time": 0.5, "duration": 0.4 },
+        { "text": "lli", "time": 1.0, "duration": 0.4 },
+        { "text": "ta ", "time": 1.5, "duration": 0.4 },
+        { "text": "dón", "time": 2.0, "duration": 0.4 },
+        { "text": "de es", "time": 2.5, "duration": 0.4 },
+        { "text": "tás ", "time": 3.0, "duration": 0.9 }
+      ]
+    },
+    {
+      "lineId": 2,
+      "startTime": 4.0,
+      "endTime": 8.0,
+      "syllables": [
+        { "text": "Quie", "time": 4.0, "duration": 0.4 },
+        { "text": "ro ", "time": 4.5, "duration": 0.4 },
+        { "text": "ver", "time": 5.0, "duration": 0.4 },
+        { "text": "te ", "time": 5.5, "duration": 0.4 },
+        { "text": "cin", "time": 6.0, "duration": 0.4 },
+        { "text": "ti", "time": 6.5, "duration": 0.4 },
+        { "text": "llar", "time": 7.0, "duration": 0.9 }
+      ]
+    }
+  ]
+}

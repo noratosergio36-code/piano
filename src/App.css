@@ -162,6 +162,30 @@ html, body, #root {
   color: #60b3ff;
 }
 
+/* Wait Mode tolerance control */
+.tolerance-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: #8888aa;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.tolerance-slider {
+  width: 80px;
+  accent-color: #60b3ff;
+  cursor: pointer;
+}
+
+.tolerance-value {
+  font-size: 0.75rem;
+  font-family: monospace;
+  color: #60b3ff;
+  min-width: 38px;
+}
+
 /* Song metadata pill */
 .song-info {
   font-size: 0.75rem;

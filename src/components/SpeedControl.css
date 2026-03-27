@@ -1,0 +1,37 @@
+.speed-control {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.speed-control__label {
+  font-size: 0.75rem;
+  color: #8888aa;
+  white-space: nowrap;
+  user-select: none;
+  margin-right: 2px;
+}
+
+.speed-btn {
+  background: transparent;
+  border: 1px solid #0f3460;
+  color: #8888aa;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.speed-btn:hover {
+  border-color: #60b3ff;
+  color: #60b3ff;
+}
+
+.speed-btn.active {
+  background: rgba(96, 179, 255, 0.15);
+  border-color: #60b3ff;
+  color: #60b3ff;
+  font-weight: 600;
+}

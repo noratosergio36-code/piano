@@ -6,13 +6,11 @@ const PIXELS_PER_SECOND = 200;
 const LOOKAHEAD_SECONDS = 2;
 const NOTE_RADIUS = 4;
 
-const TRACK_COLORS = [
-  ['#4fc3f7', '#0288d1'],
-  ['#ef9a9a', '#c62828'],
-  ['#a5d6a7', '#2e7d32'],
-  ['#fff176', '#f9a825'],
-  ['#ce93d8', '#6a1b9a'],
-];
+// Hand-based color palette: right = cyan, left = purple
+const HAND_COLORS = {
+  right: ['#4fc3f7', '#0288d1'], // [white-key, black-key]
+  left:  ['#ce93d8', '#9c27b0'],
+};
 
 function roundRect(ctx, x, y, w, h, r) {
   if (w < 2 * r) r = w / 2;
@@ -30,13 +28,14 @@ function roundRect(ctx, x, y, w, h, r) {
  * WaterfallCanvas
  *
  * @param {{
- *   notes: Array<{midi:number, time:number, duration:number, track?:number}>,
+ *   notes: Array<{midi:number, time:number, duration:number, track?:number, hand?:'left'|'right'}>,
  *   currentTime: number,
  *   activeNotes: Set<number>,
  *   expectedNotes: Set<number>,
  *   pressedExpected: Set<number>,
  *   isFrozen: boolean,
  *   range: {start:number, end:number},
+ *   practicingHands: ('left'|'right')[],
  * }} props
  */
 export function WaterfallCanvas({
@@ -47,6 +46,7 @@ export function WaterfallCanvas({
   pressedExpected = new Set(),
   isFrozen = false,
   range = PIANO_CONFIG.defaultRange,
+  practicingHands = ['left', 'right'],
 }) {
   const canvasRef = useRef(null);
   const animRef = useRef(null);
@@ -58,6 +58,7 @@ export function WaterfallCanvas({
   const expectedNotesRef = useRef(expectedNotes);
   const pressedExpectedRef = useRef(pressedExpected);
   const isFrozenRef = useRef(isFrozen);
+  const practicingHandsRef = useRef(practicingHands);
 
   useEffect(() => { currentTimeRef.current = currentTime; }, [currentTime]);
   useEffect(() => { notesRef.current = notes; }, [notes]);
@@ -65,6 +66,7 @@ export function WaterfallCanvas({
   useEffect(() => { expectedNotesRef.current = expectedNotes; }, [expectedNotes]);
   useEffect(() => { pressedExpectedRef.current = pressedExpected; }, [pressedExpected]);
   useEffect(() => { isFrozenRef.current = isFrozen; }, [isFrozen]);
+  useEffect(() => { practicingHandsRef.current = practicingHands; }, [practicingHands]);
 
   const keyMap = useMemo(() => buildKeyMap(range.start, range.end), [range]);
 
@@ -118,6 +120,8 @@ export function WaterfallCanvas({
       const visibleStart = t - 0.1;
       const visibleEnd = t + LOOKAHEAD_SECONDS + H / PIXELS_PER_SECOND;
 
+      const practicingHands = practicingHandsRef.current;
+
       for (const note of notesRef.current) {
         if (note.time > visibleEnd) continue;
         if (note.time + note.duration < visibleStart) continue;
@@ -125,9 +129,10 @@ export function WaterfallCanvas({
         const key = keyMap.get(note.midi);
         if (!key) continue;
 
-        const trackIdx = (note.track ?? 0) % TRACK_COLORS.length;
-        const [colorWhite, colorBlack] = TRACK_COLORS[trackIdx];
+        const hand = note.hand ?? 'right';
+        const [colorWhite, colorBlack] = HAND_COLORS[hand] ?? HAND_COLORS.right;
         const baseColor = key.isBlack ? colorBlack : colorWhite;
+        const isAutoplay = !practicingHands.includes(hand);
 
         const distanceFromBottom = (note.time - t) * PIXELS_PER_SECOND;
         const blockHeight = Math.max(4, note.duration * PIXELS_PER_SECOND);
@@ -154,7 +159,7 @@ export function WaterfallCanvas({
           ctx.globalAlpha = 0.95;
         } else {
           ctx.fillStyle = baseColor;
-          ctx.globalAlpha = 0.92;
+          ctx.globalAlpha = isAutoplay ? 0.42 : 0.92;
         }
 
         roundRect(ctx, x, y, w, blockHeight, NOTE_RADIUS);

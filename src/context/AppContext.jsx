@@ -10,10 +10,24 @@ const initialState = {
   currentTime: 0,
   lyrics: [], // legacy flat format — kept for internal compat
   currentLyrics: null, // LyricsFile v2: { songId?, title?, lyrics: LyricLine[] }
+  // Wait Mode state — mirrored from usePlayback for global visibility
+  isFrozen: false,
+  expectedNotes: [],  // midi numbers the player must press to unfreeze
+  toleranceMs: 80,    // configurable hit window (ms); smaller = stricter timing
   // Composer Mode state
   recordedNotes: [],  // Array<{ midiNumber, noteName, startTime, duration }>
   isRecording: false,
   composerBpm: 120,
+  // Hand practice
+  practicingHands: ['left', 'right'], // which hands the player must press
+  // Playback speed
+  playbackRate: 1.0,
+  // Instrument
+  currentInstrument: 'piano',
+  // Scoring
+  score: 0,
+  combo: 0,
+  activePopups: [], // [{ id, text, popupType, x }]
 };
 
 function reducer(state, action) {
@@ -27,12 +41,27 @@ function reducer(state, action) {
     case 'SET_LYRICS':  return { ...state, lyrics: action.payload };
     case 'LOAD_LYRICS': return { ...state, currentLyrics: action.payload };
     case 'CLEAR_LYRICS': return { ...state, currentLyrics: null };
+    // Wait Mode actions
+    case 'FREEZE_TIME':        return { ...state, isFrozen: true };
+    case 'UNFREEZE_TIME':      return { ...state, isFrozen: false };
+    case 'SET_EXPECTED_NOTES': return { ...state, expectedNotes: action.payload };
+    case 'SET_TOLERANCE':      return { ...state, toleranceMs: action.payload };
     // Composer Mode actions
     case 'START_RECORDING':   return { ...state, isRecording: true, recordedNotes: [] };
     case 'STOP_RECORDING':    return { ...state, isRecording: false };
     case 'ADD_RECORDED_NOTE': return { ...state, recordedNotes: [...state.recordedNotes, action.payload] };
     case 'CLEAR_RECORDING':   return { ...state, recordedNotes: [], isRecording: false };
-    case 'SET_COMPOSER_BPM':  return { ...state, composerBpm: action.payload };
+    case 'SET_COMPOSER_BPM':      return { ...state, composerBpm: action.payload };
+    case 'SET_PRACTICING_HANDS':  return { ...state, practicingHands: action.payload };
+    case 'SET_PLAYBACK_RATE':    return { ...state, playbackRate: action.payload };
+    case 'SET_INSTRUMENT':       return { ...state, currentInstrument: action.payload };
+    // Scoring
+    case 'ADD_SCORE':      return { ...state, score: Math.max(0, state.score + action.payload) };
+    case 'INCREMENT_COMBO':return { ...state, combo: state.combo + 1 };
+    case 'RESET_COMBO':    return { ...state, combo: 0 };
+    case 'ADD_POPUP':      return { ...state, activePopups: [...state.activePopups, action.payload] };
+    case 'REMOVE_POPUP':   return { ...state, activePopups: state.activePopups.filter((p) => p.id !== action.payload) };
+    case 'RESET_SCORE':    return { ...state, score: 0, combo: 0, activePopups: [] };
     default: return state;
   }
 }

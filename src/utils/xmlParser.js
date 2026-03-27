@@ -1,3 +1,5 @@
+import { assignHands } from './midiParser';
+
 /**
  * MusicXML parser using the browser's built-in DOMParser.
  * Supports both uncompressed .xml and the plain-text MusicXML format.
@@ -98,6 +100,7 @@ export function parseMusicXml(xmlText) {
                 duration: Math.max(0.05, durationTicks * secondsPerTick),
                 track: trackIndex,
                 velocity: 0.75,
+                hand: 'right', // placeholder — overwritten by assignHands below
               });
             }
           }
@@ -123,6 +126,8 @@ export function parseMusicXml(xmlText) {
       currentTick += measureTicks;
     });
   });
+
+  assignHands(notes);
 
   notes.sort((a, b) => a.time - b.time);
 

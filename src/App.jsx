@@ -7,6 +7,13 @@ import { ModeSelector } from './components/ModeSelector';
 import { LyricsPanel } from './components/LyricsPanel';
 import { ComposerControls } from './components/ComposerControls';
 import { SheetMusicView } from './components/SheetMusicView';
+import { HandSelector } from './components/HandSelector';
+import { SpeedControl } from './components/SpeedControl';
+import { ScoreOverlay } from './components/ScoreOverlay';
+import { ScoreBoard } from './components/ScoreBoard';
+import { InstrumentSelector } from './components/InstrumentSelector';
+import { useScoring } from './hooks/useScoring';
+import { useSFX } from './hooks/useSFX';
 import { useMidi } from './hooks/useMidi';
 import { useMidiRecorder } from './hooks/useMidiRecorder';
 import { usePlayback } from './hooks/usePlayback';
@@ -31,7 +38,10 @@ function PianoApp() {
   // MIDI physical keyboard notes
   const { activeNotes: midiNotes, midiAccess, isSupported, error: midiError } = useMidi();
   const { state, dispatch } = useAppContext();
-  const { noteOn, noteOff } = useAudioSynth();
+  const { noteOn, noteOff } = useAudioSynth(state.currentInstrument);
+  const autoNoteOn  = noteOn;
+  const autoNoteOff = noteOff;
+  const { playSuccess, playComboBonus, playError } = useSFX();
 
   // ── Composer Mode: recorder ────────────────────────────────────────────────
   const handleNoteRecorded = useCallback((note) => {
@@ -93,11 +103,42 @@ function PianoApp() {
     activeNotes,   // now includes both MIDI and mouse notes
     mode: state.mode,
     onTick: handleTick,
+    toleranceSec: state.toleranceMs / 1000,  // configurable hit window
+    dispatch,                                 // sync freeze state to AppContext
+    practicingHands: state.practicingHands,
+    onAutoNoteOn:  autoNoteOn,
+    onAutoNoteOff: autoNoteOff,
+    playbackRate: state.playbackRate,
+  });
+
+  useScoring({
+    notes,
+    activeNotes,
+    currentTime,
+    mode: state.mode,
+    toleranceSec: state.toleranceMs / 1000,
+    isFrozen,
+    expectedNotes,
+    practicingHands: state.practicingHands,
+    keyRange: state.keyRange,
+    dispatch,
+    isPlaying,
+    onSuccess:    playSuccess,
+    onError:      playError,
+    onComboBonus: playComboBonus,
   });
 
   const handleSongLoaded = useCallback((song) => {
     dispatch({ type: 'LOAD_SONG', payload: song });
+    dispatch({ type: 'RESET_SCORE' });
     stop();
+  }, [dispatch, stop]);
+
+  const handleClear = useCallback(() => {
+    stop();
+    dispatch({ type: 'LOAD_SONG', payload: null });
+    dispatch({ type: 'CLEAR_LYRICS' });
+    dispatch({ type: 'RESET_SCORE' });
   }, [dispatch, stop]);
 
   const handleLyricsLoaded = useCallback((lyricsFile) => {
@@ -126,6 +167,7 @@ function PianoApp() {
           <FileLoader
             onSongLoaded={handleSongLoaded}
             onLyricsLoaded={handleLyricsLoaded}
+            onClear={handleClear}
           />
         )}
 
@@ -145,8 +187,36 @@ function PianoApp() {
           </div>
         )}
 
+        {/* Tolerance control — only relevant in Wait Mode */}
+        {state.mode === 'wait' && (
+          <label className="tolerance-label" title="Ventana de tolerancia para presionar la nota (ms)">
+            <span>Tolerancia</span>
+            <input
+              type="range"
+              className="tolerance-slider"
+              min={30}
+              max={300}
+              step={10}
+              value={state.toleranceMs}
+              onChange={(e) =>
+                dispatch({ type: 'SET_TOLERANCE', payload: Number(e.target.value) })
+              }
+            />
+            <span className="tolerance-value">{state.toleranceMs}ms</span>
+          </label>
+        )}
+
         {/* Composer Mode controls */}
         {isComposer && <ComposerControls />}
+
+        {/* Hand selector — hidden in Composer Mode */}
+        {!isComposer && <HandSelector />}
+
+        {/* Playback speed — hidden in Composer Mode */}
+        {!isComposer && <SpeedControl />}
+
+        {/* Instrument selector */}
+        {!isComposer && <InstrumentSelector />}
 
         <ModeSelector mode={state.mode} onChange={handleModeChange} />
 
@@ -190,7 +260,15 @@ function PianoApp() {
               pressedExpected={pressedExpected}
               isFrozen={isFrozen}
               range={state.keyRange}
+              practicingHands={state.practicingHands}
             />
+            {/* Score popups + board — visible in Follow and Wait modes */}
+            {(state.mode === 'follow' || state.mode === 'wait') && (
+              <>
+                <ScoreOverlay />
+                <ScoreBoard />
+              </>
+            )}
             {/* Karaoke overlay — visible in Follow and Wait modes when lyrics are loaded */}
             {(state.mode === 'follow' || state.mode === 'wait') && (
               <LyricsPanel />

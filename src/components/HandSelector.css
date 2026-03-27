@@ -1,0 +1,42 @@
+.hand-selector {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.hand-selector__label {
+  font-size: 0.75rem;
+  color: #8888aa;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.hand-btn {
+  background: transparent;
+  border: 1px solid #0f3460;
+  color: #8888aa;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.hand-btn:hover {
+  border-color: #60b3ff;
+  color: #60b3ff;
+}
+
+/* Left hand = purple accent */
+.hand-btn--left.active {
+  background: rgba(167, 139, 250, 0.15);
+  border-color: #a78bfa;
+  color: #a78bfa;
+}
+
+/* Right hand = cyan accent */
+.hand-btn--right.active {
+  background: rgba(96, 179, 255, 0.15);
+  border-color: #60b3ff;
+  color: #60b3ff;
+}

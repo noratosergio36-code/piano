@@ -1,0 +1,29 @@
+.instrument-selector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.instrument-selector__label {
+  font-size: 0.75rem;
+  color: #8888aa;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.instrument-select {
+  background: #0f3460;
+  border: 1px solid #1a5fa8;
+  color: #e0e0f0;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.instrument-select:hover,
+.instrument-select:focus {
+  border-color: #60b3ff;
+}
