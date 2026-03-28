@@ -201,17 +201,19 @@ export function useScoring({
       const n = notes[i];
       if (processedRef.current.has(i)) continue;
       if (!practicingHands.includes(n.hand ?? 'right')) continue;
-      // Note is fully past the tolerance window
       if (n.time + n.duration + toleranceSec < currentTime - toleranceSec) {
         processedRef.current.add(i);
         missCount++;
         missMidi = n.midi;
         dispatchRef.current({ type: 'ADD_SCORE', payload: -1 });
-        registerError();
+        localComboRef.current = 0;
+        dispatchRef.current({ type: 'RESET_COMBO' });
       }
     }
 
     if (missCount > 0) {
+      // SFX + popup once per batch of misses (throttled)
+      registerError();
       const now = performance.now();
       if (now - lastMissTimeRef.current > 800) {
         lastMissTimeRef.current = now;

@@ -24,6 +24,10 @@ const initialState = {
   playbackRate: 1.0,
   // Instrument
   currentInstrument: 'piano',
+  // A/B loop
+  loopStart: 0,    // seconds — Point A
+  loopEnd: null,   // seconds — Point B (null = song end)
+  isLooping: false,
   // Scoring
   score: 0,
   combo: 0,
@@ -55,6 +59,10 @@ function reducer(state, action) {
     case 'SET_PRACTICING_HANDS':  return { ...state, practicingHands: action.payload };
     case 'SET_PLAYBACK_RATE':    return { ...state, playbackRate: action.payload };
     case 'SET_INSTRUMENT':       return { ...state, currentInstrument: action.payload };
+    // A/B loop
+    case 'SET_LOOP_START':  return { ...state, loopStart: Math.max(0, action.payload) };
+    case 'SET_LOOP_END':    return { ...state, loopEnd: action.payload };
+    case 'TOGGLE_LOOPING':  return { ...state, isLooping: !state.isLooping };
     // Scoring
     case 'ADD_SCORE':      return { ...state, score: Math.max(0, state.score + action.payload) };
     case 'INCREMENT_COMBO':return { ...state, combo: state.combo + 1 };

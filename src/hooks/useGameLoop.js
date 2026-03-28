@@ -20,7 +20,14 @@ import { useRef, useState, useCallback, useEffect } from 'react';
  *   unfreeze: () => void,
  * }}
  */
-export function useGameLoop({ onTick, playbackRate = 1.0 } = {}) {
+export function useGameLoop({
+  onTick,
+  playbackRate = 1.0,
+  loopStart    = 0,
+  loopEnd      = null,
+  isLooping    = false,
+  onLoop       = null,   // called with (loopStart) when a loop jump occurs
+} = {}) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isFrozen, setIsFrozen] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -28,11 +35,20 @@ export function useGameLoop({ onTick, playbackRate = 1.0 } = {}) {
   const rafRef = useRef(null);
   const startWallRef = useRef(null);
   const startGameRef = useRef(0);
-  const frozenRef = useRef(false);   // readable in RAF without stale closure
+  const frozenRef = useRef(false);
   const onTickRef = useRef(onTick);
   const playbackRateRef = useRef(playbackRate);
+  // Loop config refs — always fresh inside the RAF callback
+  const loopStartRef  = useRef(loopStart);
+  const loopEndRef    = useRef(loopEnd);
+  const isLoopingRef  = useRef(isLooping);
+  const onLoopRef     = useRef(onLoop);
 
-  useEffect(() => { onTickRef.current = onTick; }, [onTick]);
+  useEffect(() => { onTickRef.current  = onTick;    }, [onTick]);
+  useEffect(() => { loopStartRef.current  = loopStart;  }, [loopStart]);
+  useEffect(() => { loopEndRef.current    = loopEnd;    }, [loopEnd]);
+  useEffect(() => { isLoopingRef.current  = isLooping;  }, [isLooping]);
+  useEffect(() => { onLoopRef.current     = onLoop;     }, [onLoop]);
 
   // When playbackRate changes mid-playback: snapshot the current game time
   // and reset the wall-clock origin so elapsed resets to 0 at the new rate.
@@ -52,7 +68,32 @@ export function useGameLoop({ onTick, playbackRate = 1.0 } = {}) {
   const tick = useCallback(() => {
     if (!frozenRef.current) {
       const wallElapsed = (performance.now() - startWallRef.current) / 1000;
-      const gameTime = startGameRef.current + wallElapsed * playbackRateRef.current;
+      let gameTime = startGameRef.current + wallElapsed * playbackRateRef.current;
+
+      // ── A/B loop logic ──────────────────────────────────────────────────
+      const end      = loopEndRef.current;
+      const start    = loopStartRef.current;
+      const looping  = isLoopingRef.current;
+
+      if (end !== null && gameTime >= end) {
+        if (looping) {
+          // Loop: jump back to Point A — re-anchor wall clock
+          gameTime = start;
+          startGameRef.current = start;
+          startWallRef.current = performance.now();
+          onLoopRef.current?.(start);   // notify usePlayback to reset indices
+        } else {
+          // One-shot: stop at Point B
+          startGameRef.current = end;
+          setCurrentTime(end);
+          setIsPlaying(false);
+          rafRef.current = null;
+          onTickRef.current?.(end);
+          return; // do NOT schedule next frame
+        }
+      }
+      // ────────────────────────────────────────────────────────────────────
+
       setCurrentTime(gameTime);
       onTickRef.current?.(gameTime);
     }

@@ -47,6 +47,9 @@ export function WaterfallCanvas({
   isFrozen = false,
   range = PIANO_CONFIG.defaultRange,
   practicingHands = ['left', 'right'],
+  loopStart = 0,
+  loopEnd   = null,
+  isLooping = false,
 }) {
   const canvasRef = useRef(null);
   const animRef = useRef(null);
@@ -59,6 +62,9 @@ export function WaterfallCanvas({
   const pressedExpectedRef = useRef(pressedExpected);
   const isFrozenRef = useRef(isFrozen);
   const practicingHandsRef = useRef(practicingHands);
+  const loopStartRef  = useRef(loopStart);
+  const loopEndRef    = useRef(loopEnd);
+  const isLoopingRef  = useRef(isLooping);
 
   useEffect(() => { currentTimeRef.current = currentTime; }, [currentTime]);
   useEffect(() => { notesRef.current = notes; }, [notes]);
@@ -67,6 +73,9 @@ export function WaterfallCanvas({
   useEffect(() => { pressedExpectedRef.current = pressedExpected; }, [pressedExpected]);
   useEffect(() => { isFrozenRef.current = isFrozen; }, [isFrozen]);
   useEffect(() => { practicingHandsRef.current = practicingHands; }, [practicingHands]);
+  useEffect(() => { loopStartRef.current  = loopStart;  }, [loopStart]);
+  useEffect(() => { loopEndRef.current    = loopEnd;    }, [loopEnd]);
+  useEffect(() => { isLoopingRef.current  = isLooping;  }, [isLooping]);
 
   const keyMap = useMemo(() => buildKeyMap(range.start, range.end), [range]);
 
@@ -182,6 +191,54 @@ export function WaterfallCanvas({
         ctx.fillStyle = `rgba(96,179,255,${0.6 + pulse * 0.4})`;
         ctx.fillText('⏳  Presiona las teclas resaltadas', W / 2, 28);
       }
+
+      // ── A/B loop markers ──────────────────────────────────────────────
+      const loopA   = loopStartRef.current;
+      const loopB   = loopEndRef.current;
+      const looping = isLoopingRef.current;
+
+      if (loopB !== null) {
+        // Shaded region between A and B
+        const yA = H - (loopA - t) * PIXELS_PER_SECOND;
+        const yB = H - (loopB - t) * PIXELS_PER_SECOND;
+        const rTop    = Math.min(yA, yB);
+        const rBottom = Math.max(yA, yB);
+        if (rBottom > 0 && rTop < H) {
+          ctx.fillStyle = looping
+            ? 'rgba(96,179,255,0.06)'
+            : 'rgba(245,158,11,0.05)';
+          ctx.fillRect(0, Math.max(0, rTop), W, Math.min(H, rBottom) - Math.max(0, rTop));
+        }
+
+        // Point A line (cyan)
+        if (yA >= 0 && yA <= H) {
+          ctx.strokeStyle = 'rgba(96,179,255,0.75)';
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([6, 4]);
+          ctx.beginPath();
+          ctx.moveTo(0, yA); ctx.lineTo(W, yA);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.font = 'bold 10px "Segoe UI", sans-serif';
+          ctx.fillStyle = '#60b3ff';
+          ctx.fillText('A', 4, yA - 3);
+        }
+
+        // Point B line (amber)
+        if (yB >= 0 && yB <= H) {
+          ctx.strokeStyle = 'rgba(245,158,11,0.75)';
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([6, 4]);
+          ctx.beginPath();
+          ctx.moveTo(0, yB); ctx.lineTo(W, yB);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.font = 'bold 10px "Segoe UI", sans-serif';
+          ctx.fillStyle = '#f59e0b';
+          ctx.fillText('B', 4, yB - 3);
+        }
+      }
+      // ──────────────────────────────────────────────────────────────────
 
       // Scan line
       ctx.strokeStyle = 'rgba(96,179,255,0.5)';

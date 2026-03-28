@@ -72,9 +72,55 @@ export function usePlayback({
   onAutoNoteOn = null,
   onAutoNoteOff = null,
   playbackRate = 1.0,
+  loopStart = 0,
+  loopEnd   = null,
+  isLooping = false,
 }) {
+  // Indirection ref: handleLoop is wired in after it's defined (below)
+  const handleLoopRef    = useRef(null);
+  const onLoopStable     = useCallback((t) => { handleLoopRef.current?.(t); }, []);
+
+  // Keep the caller's onTick in a ref so wrappedOnTick stays stable
+  const onTickInnerRef = useRef(onTick);
+  useEffect(() => { onTickInnerRef.current = onTick; }, [onTick]);
+
+  // Track isPlaying in a ref so processAutoplay can check it without
+  // re-creating the callback (avoids restarts in useGameLoop)
+  const isPlayingRef = useRef(false);
+
+  // processAutoplay: fires noteOn/noteOff for non-practiced-hand notes.
+  // Uses only refs → safe to call synchronously from the RAF callback
+  // (i.e. inside wrappedOnTick) so it always sees the post-loop index.
+  const processAutoplay = useCallback((t) => {
+    if (!isPlayingRef.current) return;
+    const sched = autoScheduleRef.current;
+    while (autoIndexRef.current < sched.length) {
+      const note = sched[autoIndexRef.current];
+      if (note.time > t) break;
+      onAutoNoteOnRef.current?.(note.midi);
+      autoActiveRef.current.set(note.midi, note.time + note.duration);
+      autoIndexRef.current += 1;
+    }
+    autoActiveRef.current.forEach((endTime, midi) => {
+      if (t >= endTime) {
+        onAutoNoteOffRef.current?.(midi);
+        autoActiveRef.current.delete(midi);
+      }
+    });
+  }, []);
+
+  // wrappedOnTick: passed to useGameLoop so autoplay runs synchronously
+  // in the same RAF frame as the loop-jump, eliminating the race condition.
+  const wrappedOnTick = useCallback((t) => {
+    processAutoplay(t);
+    onTickInnerRef.current?.(t);
+  }, [processAutoplay]);
+
   const { currentTime, isPlaying, isFrozen, play, pause, stop, seekTo, freeze, unfreeze } =
-    useGameLoop({ onTick, playbackRate });
+    useGameLoop({ onTick: wrappedOnTick, playbackRate, loopStart, loopEnd, isLooping, onLoop: onLoopStable });
+
+  // Sync isPlayingRef after useGameLoop provides isPlaying
+  useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
 
   // ── Tolerance ref — updated without triggering effect re-runs ────────────
   // This lets the hit-window change take effect on the very next RAF tick
@@ -154,6 +200,28 @@ export function usePlayback({
     });
     autoActiveRef.current = new Map();
   }, []);
+
+  // ── Loop jump handler: called by useGameLoop when Point B is reached ──────
+  const handleLoop = useCallback((t) => {
+    // Reposition beat index
+    const beats = beatMapRef.current;
+    let idx = 0;
+    while (idx < beats.length && beats[idx].time < t - CHORD_GROUP_TOLERANCE) idx++;
+    beatIndexRef.current   = idx;
+    waitingBeatRef.current = null;
+    pressedSetRef.current  = new Set();
+    setExpectedNotes(new Set());
+    setPressedExpected(new Set());
+    // Reposition autoplay index
+    const sched = autoScheduleRef.current;
+    let ai = 0;
+    while (ai < sched.length && sched[ai].time < t) ai++;
+    autoIndexRef.current = ai;
+    silenceAutoplay();
+  }, [silenceAutoplay]);
+
+  // Wire handleLoop to the indirection ref (stable onLoopStable is already passed to useGameLoop)
+  useEffect(() => { handleLoopRef.current = handleLoop; }, [handleLoop]);
 
   // ── Wrapped stop/seek — reset beat tracking ──────────────────────────────
   const wrappedStop = useCallback(() => {
@@ -242,33 +310,6 @@ export function usePlayback({
       syncUnfreeze();
     }
   }, [activeNotes, mode, isFrozen, syncUnfreeze]);
-
-  // ── Autoplay: fire noteOn/noteOff for non-practiced-hand notes ───────────
-  // Runs every RAF tick (currentTime changes). Fires noteOn for notes whose
-  // start time has passed, and noteOff for notes whose end time has passed.
-  useEffect(() => {
-    if (!isPlaying) return;
-
-    const t     = currentTime;
-    const sched = autoScheduleRef.current;
-
-    // Fire noteOn for all upcoming notes whose start time <= t
-    while (autoIndexRef.current < sched.length) {
-      const note = sched[autoIndexRef.current];
-      if (note.time > t) break;
-      onAutoNoteOnRef.current?.(note.midi);
-      autoActiveRef.current.set(note.midi, note.time + note.duration);
-      autoIndexRef.current += 1;
-    }
-
-    // Fire noteOff for notes that have ended
-    autoActiveRef.current.forEach((endTime, midi) => {
-      if (t >= endTime) {
-        onAutoNoteOffRef.current?.(midi);
-        autoActiveRef.current.delete(midi);
-      }
-    });
-  }, [currentTime, isPlaying]);
 
   // ── Follow / Free mode: clear wait state if somehow frozen ───────────────
   useEffect(() => {

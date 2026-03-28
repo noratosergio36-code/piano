@@ -1,0 +1,22 @@
+{
+  "nombre": "Estrellita ¿Dónde Estás?",
+  "bpm": 120,
+  "duracionTotal": 8.0,
+  "notes": [
+    { "nombre": "C4", "midiNumber": 60, "tiempoInicio": 0.0, "duracion": 0.4, "mano": "right" },
+    { "nombre": "C4", "midiNumber": 60, "tiempoInicio": 0.5, "duracion": 0.4, "mano": "right" },
+    { "nombre": "G4", "midiNumber": 67, "tiempoInicio": 1.0, "duracion": 0.4, "mano": "right" },
+    { "nombre": "G4", "midiNumber": 67, "tiempoInicio": 1.5, "duracion": 0.4, "mano": "right" },
+    { "nombre": "A4", "midiNumber": 69, "tiempoInicio": 2.0, "duracion": 0.4, "mano": "right" },
+    { "nombre": "A4", "midiNumber": 69, "tiempoInicio": 2.5, "duracion": 0.4, "mano": "right" },
+    { "nombre": "G4", "midiNumber": 67, "tiempoInicio": 3.0, "duracion": 0.9, "mano": "right" },
+
+    { "nombre": "F4", "midiNumber": 65, "tiempoInicio": 4.0, "duracion": 0.4, "mano": "right" },
+    { "nombre": "F4", "midiNumber": 65, "tiempoInicio": 4.5, "duracion": 0.4, "mano": "right" },
+    { "nombre": "E4", "midiNumber": 64, "tiempoInicio": 5.0, "duracion": 0.4, "mano": "right" },
+    { "nombre": "E4", "midiNumber": 64, "tiempoInicio": 5.5, "duracion": 0.4, "mano": "right" },
+    { "nombre": "D4", "midiNumber": 62, "tiempoInicio": 6.0, "duracion": 0.4, "mano": "right" },
+    { "nombre": "D4", "midiNumber": 62, "tiempoInicio": 6.5, "duracion": 0.4, "mano": "right" },
+    { "nombre": "C4", "midiNumber": 60, "tiempoInicio": 7.0, "duracion": 0.9, "mano": "right" }
+  ]
+}

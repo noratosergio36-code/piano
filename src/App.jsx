@@ -10,32 +10,30 @@ import { SheetMusicView } from './components/SheetMusicView';
 import { HandSelector } from './components/HandSelector';
 import { SpeedControl } from './components/SpeedControl';
 import { ScoreOverlay } from './components/ScoreOverlay';
-import { ScoreBoard } from './components/ScoreBoard';
 import { InstrumentSelector } from './components/InstrumentSelector';
-import { useScoring } from './hooks/useScoring';
-import { useSFX } from './hooks/useSFX';
+import { SectionLoopControl } from './components/SectionLoopControl';
 import { useMidi } from './hooks/useMidi';
 import { useMidiRecorder } from './hooks/useMidiRecorder';
 import { usePlayback } from './hooks/usePlayback';
 import { useAudioSynth } from './hooks/useAudioSynth';
+import { useScoring } from './hooks/useScoring';
+import { useSFX } from './hooks/useSFX';
 import { useAppContext } from './context/AppContext';
 import { buildKeyLayout } from './utils/keyLayout';
 import './App.css';
 
 const DEMO_NOTES = [
-  { midi: 60, time: 1,   duration: 0.4, track: 0 },
-  { midi: 62, time: 1.5, duration: 0.4, track: 0 },
-  { midi: 64, time: 2,   duration: 0.4, track: 0 },
-  { midi: 65, time: 2.5, duration: 0.4, track: 0 },
-  { midi: 67, time: 3,   duration: 0.8, track: 0 },
-  { midi: 67, time: 3,   duration: 0.4, track: 1 },
-  { midi: 64, time: 4,   duration: 0.4, track: 0 },
-  { midi: 65, time: 4.5, duration: 0.4, track: 0 },
-  { midi: 64, time: 5,   duration: 0.8, track: 0 },
+  { midi: 60, time: 1,   duration: 0.4, track: 0, hand: 'right' },
+  { midi: 62, time: 1.5, duration: 0.4, track: 0, hand: 'right' },
+  { midi: 64, time: 2,   duration: 0.4, track: 0, hand: 'right' },
+  { midi: 65, time: 2.5, duration: 0.4, track: 0, hand: 'right' },
+  { midi: 67, time: 3,   duration: 0.8, track: 0, hand: 'right' },
+  { midi: 64, time: 4,   duration: 0.4, track: 0, hand: 'right' },
+  { midi: 65, time: 4.5, duration: 0.4, track: 0, hand: 'right' },
+  { midi: 64, time: 5,   duration: 0.8, track: 0, hand: 'right' },
 ];
 
 function PianoApp() {
-  // MIDI physical keyboard notes
   const { activeNotes: midiNotes, midiAccess, isSupported, error: midiError } = useMidi();
   const { state, dispatch } = useAppContext();
   const { noteOn, noteOff } = useAudioSynth(state.currentInstrument);
@@ -43,7 +41,9 @@ function PianoApp() {
   const autoNoteOff = noteOff;
   const { playSuccess, playComboBonus, playError } = useSFX();
 
-  // ── Composer Mode: recorder ────────────────────────────────────────────────
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // ── Composer Mode recorder ─────────────────────────────────────────────────
   const handleNoteRecorded = useCallback((note) => {
     dispatch({ type: 'ADD_RECORDED_NOTE', payload: note });
   }, [dispatch]);
@@ -54,22 +54,20 @@ function PianoApp() {
     onNoteRecorded: handleNoteRecorded,
   });
 
-  // Mouse/touch clicked notes — tracked separately so Wait Mode can react to them
   const [mouseNotes, setMouseNotes] = useState(new Set());
 
   const handleNoteOn = useCallback((midi) => {
     noteOn(midi);
-    recorderNoteOn(midi); // no-op when not recording
+    recorderNoteOn(midi);
     setMouseNotes((prev) => { const s = new Set(prev); s.add(midi); return s; });
   }, [noteOn, recorderNoteOn]);
 
   const handleNoteOff = useCallback((midi) => {
     noteOff(midi);
-    recorderNoteOff(midi); // no-op when not recording
+    recorderNoteOff(midi);
     setMouseNotes((prev) => { const s = new Set(prev); s.delete(midi); return s; });
   }, [noteOff, recorderNoteOff]);
 
-  // Combined active notes: MIDI + mouse — used everywhere (canvas highlight, wait mode, keyboard)
   const activeNotes = useMemo(() => {
     if (mouseNotes.size === 0) return midiNotes;
     const combined = new Set(midiNotes);
@@ -79,7 +77,6 @@ function PianoApp() {
 
   const notes = state.loadedSong?.notes ?? DEMO_NOTES;
 
-  // Keyboard pixel width — used to size the piano-stage so canvas and keyboard share the same width
   const keyboardWidth = useMemo(
     () => buildKeyLayout(state.keyRange.start, state.keyRange.end).totalWidth,
     [state.keyRange]
@@ -100,15 +97,18 @@ function PianoApp() {
     stop,
   } = usePlayback({
     notes,
-    activeNotes,   // now includes both MIDI and mouse notes
+    activeNotes,
     mode: state.mode,
     onTick: handleTick,
-    toleranceSec: state.toleranceMs / 1000,  // configurable hit window
-    dispatch,                                 // sync freeze state to AppContext
+    toleranceSec: state.toleranceMs / 1000,
+    dispatch,
     practicingHands: state.practicingHands,
     onAutoNoteOn:  autoNoteOn,
     onAutoNoteOff: autoNoteOff,
     playbackRate: state.playbackRate,
+    loopStart: state.loopStart,
+    loopEnd:   state.loopEnd,
+    isLooping: state.isLooping,
   });
 
   useScoring({
@@ -147,7 +147,6 @@ function PianoApp() {
 
   const handleModeChange = useCallback((mode) => {
     dispatch({ type: 'SET_MODE', payload: mode });
-    // Stop game loop when entering composer; stop recording when leaving it
     if (mode === 'composer') {
       stop();
     } else if (state.isRecording) {
@@ -155,102 +154,150 @@ function PianoApp() {
     }
   }, [dispatch, stop, state.isRecording]);
 
-  const isComposer = state.mode === 'composer';
+  const isComposer   = state.mode === 'composer';
+  const isScoredMode = state.mode === 'follow' || state.mode === 'wait';
 
   return (
     <div className="app-layout">
-      <header className="app-header">
-        <h1>Piano Maestro</h1>
 
-        {/* Playback tools — hidden in Composer Mode */}
-        {!isComposer && (
-          <FileLoader
-            onSongLoaded={handleSongLoaded}
-            onLyricsLoaded={handleLyricsLoaded}
-            onClear={handleClear}
-          />
-        )}
+      {/* ── Floating control bar ──────────────────────────────────────────── */}
+      <header className="control-bar">
 
-        {!isComposer && (
-          <div className="transport-controls">
-            <button
-              className="btn-transport"
-              onClick={isPlaying ? pause : play}
-              title={isPlaying ? 'Pausar' : 'Reproducir'}
-            >
-              {isPlaying ? '⏸' : '▶'}
-            </button>
-            <button className="btn-transport" onClick={stop} title="Detener">⏹</button>
-            <span className={`time-display ${isFrozen ? 'time-frozen' : ''}`}>
-              {currentTime.toFixed(2)}s
-            </span>
-          </div>
-        )}
+        {/* LEFT: logo + transport */}
+        <div className="cb-left">
+          <span className="cb-logo">🎹 Piano Maestro</span>
 
-        {/* Tolerance control — only relevant in Wait Mode */}
-        {state.mode === 'wait' && (
-          <label className="tolerance-label" title="Ventana de tolerancia para presionar la nota (ms)">
-            <span>Tolerancia</span>
-            <input
-              type="range"
-              className="tolerance-slider"
-              min={30}
-              max={300}
-              step={10}
-              value={state.toleranceMs}
-              onChange={(e) =>
-                dispatch({ type: 'SET_TOLERANCE', payload: Number(e.target.value) })
-              }
-            />
-            <span className="tolerance-value">{state.toleranceMs}ms</span>
-          </label>
-        )}
-
-        {/* Composer Mode controls */}
-        {isComposer && <ComposerControls />}
-
-        {/* Hand selector — hidden in Composer Mode */}
-        {!isComposer && <HandSelector />}
-
-        {/* Playback speed — hidden in Composer Mode */}
-        {!isComposer && <SpeedControl />}
-
-        {/* Instrument selector */}
-        {!isComposer && <InstrumentSelector />}
-
-        <ModeSelector mode={state.mode} onChange={handleModeChange} />
-
-        <div className="notation-toggle">
-          <button
-            className={`btn-notation ${state.notation === 'american' ? 'active' : ''}`}
-            onClick={() => dispatch({ type: 'SET_NOTATION', payload: 'american' })}
-          >ABC</button>
-          <button
-            className={`btn-notation ${state.notation === 'solfeo' ? 'active' : ''}`}
-            onClick={() => dispatch({ type: 'SET_NOTATION', payload: 'solfeo' })}
-          >Do Re Mi</button>
+          {isComposer ? (
+            <ComposerControls />
+          ) : (
+            <div className="transport-controls">
+              <button
+                className="btn-transport"
+                onClick={isPlaying ? pause : play}
+                title={isPlaying ? 'Pausar' : 'Reproducir'}
+              >
+                {isPlaying ? '⏸' : '▶'}
+              </button>
+              <button className="btn-transport" onClick={stop} title="Detener">⏹</button>
+              <span className={`time-display ${isFrozen ? 'time-frozen' : ''}`}>
+                {currentTime.toFixed(2)}s
+              </span>
+            </div>
+          )}
         </div>
 
-        {!isComposer && state.loadedSong && (
-          <div className="song-info">
-            {state.loadedSong.tracks.length} pista{state.loadedSong.tracks.length !== 1 ? 's' : ''}
-            {' · '}{state.loadedSong.bpm.toFixed(0)} BPM
-            {' · '}{state.loadedSong.duration.toFixed(1)}s
-          </div>
-        )}
+        {/* CENTER: speed + mode */}
+        <div className="cb-center">
+          {!isComposer && <SpeedControl />}
+          <ModeSelector mode={state.mode} onChange={handleModeChange} />
+        </div>
 
-        {!isSupported && (
-          <div className="midi-warning">Web MIDI no soportado. Usa Chrome/Edge.</div>
+        {/* RIGHT: score + settings */}
+        <div className="cb-right">
+          {isScoredMode && (state.score > 0 || state.combo > 0) && (
+            <div className="cb-score">
+              <span className="cb-score__pts">{state.score.toLocaleString()}</span>
+              {state.combo > 0 && (
+                <span className={`cb-score__combo ${state.combo > 5 ? 'hot' : ''}`}>
+                  ×{state.combo}
+                </span>
+              )}
+            </div>
+          )}
+
+          <button
+            className={`btn-settings ${settingsOpen ? 'active' : ''}`}
+            onClick={() => setSettingsOpen((o) => !o)}
+            title="Ajustes"
+          >
+            ⚙️
+          </button>
+        </div>
+
+        {/* Settings dropdown */}
+        {settingsOpen && (
+          <>
+            <div className="settings-backdrop" onClick={() => setSettingsOpen(false)} />
+            <div className="settings-panel">
+
+              {/* File loader */}
+              {!isComposer && (
+                <FileLoader
+                  onSongLoaded={handleSongLoaded}
+                  onLyricsLoaded={handleLyricsLoaded}
+                  onClear={handleClear}
+                />
+              )}
+
+              {/* Instrument + hands */}
+              {!isComposer && (
+                <div className="settings-row">
+                  <InstrumentSelector />
+                  <HandSelector />
+                </div>
+              )}
+
+              {/* Notation + tolerance */}
+              <div className="settings-row">
+                <div className="notation-toggle">
+                  <span className="settings-label">Notación</span>
+                  <button
+                    className={`btn-notation ${state.notation === 'american' ? 'active' : ''}`}
+                    onClick={() => dispatch({ type: 'SET_NOTATION', payload: 'american' })}
+                  >ABC</button>
+                  <button
+                    className={`btn-notation ${state.notation === 'solfeo' ? 'active' : ''}`}
+                    onClick={() => dispatch({ type: 'SET_NOTATION', payload: 'solfeo' })}
+                  >Do Re Mi</button>
+                </div>
+
+                {state.mode === 'wait' && (
+                  <label className="tolerance-label" title="Ventana de tolerancia (ms)">
+                    <span>Tolerancia</span>
+                    <input
+                      type="range"
+                      className="tolerance-slider"
+                      min={30} max={300} step={10}
+                      value={state.toleranceMs}
+                      onChange={(e) =>
+                        dispatch({ type: 'SET_TOLERANCE', payload: Number(e.target.value) })
+                      }
+                    />
+                    <span className="tolerance-value">{state.toleranceMs}ms</span>
+                  </label>
+                )}
+              </div>
+
+              {/* A/B loop — only when a song is loaded */}
+              {!isComposer && state.loadedSong && (
+                <>
+                  <div className="settings-divider" />
+                  <SectionLoopControl />
+                </>
+              )}
+
+              {/* Song info + warnings */}
+              {state.loadedSong && (
+                <div className="song-info">
+                  {state.loadedSong.tracks.length} pista{state.loadedSong.tracks.length !== 1 ? 's' : ''}
+                  {' · '}{state.loadedSong.bpm.toFixed(0)} BPM
+                  {' · '}{state.loadedSong.duration.toFixed(1)}s
+                </div>
+              )}
+              {!isSupported && (
+                <div className="midi-warning">Web MIDI no soportado. Usa Chrome/Edge.</div>
+              )}
+              {midiError && <div className="midi-error">{midiError}</div>}
+            </div>
+          </>
         )}
-        {midiError && <div className="midi-error">{midiError}</div>}
       </header>
 
+      {/* ── Main: canvas fills full height (bar is overlay) ──────────────── */}
       <main className="app-main">
         {isComposer ? (
-          /* ── Composer Mode: Grand Staff sheet music view ─────────────────── */
           <SheetMusicView />
         ) : (
-          /* ── Playback Modes: Waterfall canvas ────────────────────────────── */
           <div className="piano-stage" style={{ width: keyboardWidth }}>
             <WaterfallCanvas
               notes={notes}
@@ -261,22 +308,18 @@ function PianoApp() {
               isFrozen={isFrozen}
               range={state.keyRange}
               practicingHands={state.practicingHands}
+              loopStart={state.loopStart}
+              loopEnd={state.loopEnd}
+              isLooping={state.isLooping}
             />
-            {/* Score popups + board — visible in Follow and Wait modes */}
-            {(state.mode === 'follow' || state.mode === 'wait') && (
-              <>
-                <ScoreOverlay />
-                <ScoreBoard />
-              </>
-            )}
-            {/* Karaoke overlay — visible in Follow and Wait modes when lyrics are loaded */}
-            {(state.mode === 'follow' || state.mode === 'wait') && (
-              <LyricsPanel />
-            )}
+            {/* Score popups + karaoke */}
+            {isScoredMode && <ScoreOverlay />}
+            {isScoredMode && <LyricsPanel />}
           </div>
         )}
       </main>
 
+      {/* ── Piano keyboard ───────────────────────────────────────────────── */}
       <footer className="app-footer">
         <PianoKeyboard
           activeNotes={activeNotes}

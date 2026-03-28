@@ -12,9 +12,12 @@ import * as Tone from 'tone';
  * }}
  */
 export function useSFX() {
-  const successSynthRef = useRef(null);
-  const arpSynthRef     = useRef(null);
-  const errorSynthRef   = useRef(null);
+  const successSynthRef   = useRef(null);
+  const arpSynthRef       = useRef(null);
+  const errorSynthRef     = useRef(null);
+  // Throttle timestamps — prevent re-triggering within cooldown window
+  const lastSuccessRef    = useRef(0);
+  const lastErrorRef      = useRef(0);
 
   // ── Lazy initializers ──────────────────────────────────────────────────────
 
@@ -53,8 +56,11 @@ export function useSFX() {
 
   /** Bright "coin" ping — played on every correct note hit. */
   const playSuccess = useCallback(async () => {
+    const now = performance.now();
+    if (now - lastSuccessRef.current < 80) return; // min 80 ms between hits
+    lastSuccessRef.current = now;
     await Tone.start();
-    getSuccessSynth().triggerAttackRelease('E6', '32n', Tone.now());
+    getSuccessSynth().triggerAttackRelease('E6', '32n', Tone.now() + 0.002);
   }, [getSuccessSynth]);
 
   /** Ascending arpegio C6→E6→G6 — played on every combo ×10 milestone. */
@@ -69,8 +75,12 @@ export function useSFX() {
 
   /** Soft brown-noise thud — played on wrong notes and misses. */
   const playError = useCallback(async () => {
+    const now = performance.now();
+    if (now - lastErrorRef.current < 200) return; // min 200 ms between errors
+    lastErrorRef.current = now;
     await Tone.start();
-    getErrorSynth().triggerAttackRelease('8n', Tone.now());
+    // Schedule slightly in the future so rapid calls don't clash
+    getErrorSynth().triggerAttackRelease('8n', Tone.now() + 0.005);
   }, [getErrorSynth]);
 
   // ── Cleanup on unmount ────────────────────────────────────────────────────
