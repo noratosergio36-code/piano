@@ -11,8 +11,27 @@ export function useMidi() {
   const [error, setError] = useState(null);
   const listenersRef = useRef([]);
 
+  // Tracks the last status byte for MIDI running status support.
+  // Some pianos omit the status byte on consecutive same-type messages.
+  const lastStatusRef = useRef(0);
+
   const handleMidiMessage = useCallback((event) => {
-    const [status, note, velocity] = event.data;
+    const data = event.data;
+    let status, note, velocity;
+
+    // Running status: if the first byte has the high bit clear it's a data byte,
+    // meaning the status is inherited from the previous message.
+    if (data[0] & 0x80) {
+      status = data[0];
+      lastStatusRef.current = status;
+      note     = data[1];
+      velocity = data[2];
+    } else {
+      status   = lastStatusRef.current;
+      note     = data[0];
+      velocity = data[1];
+    }
+
     const command = status & 0xf0;
 
     if (command === 0x90 && velocity > 0) {
@@ -23,7 +42,7 @@ export function useMidi() {
         return next;
       });
     } else if (command === 0x80 || (command === 0x90 && velocity === 0)) {
-      // Note Off
+      // Note Off (also handles Note On with velocity 0)
       setActiveNotes((prev) => {
         const next = new Set(prev);
         next.delete(note);
